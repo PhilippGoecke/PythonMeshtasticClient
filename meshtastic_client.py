@@ -103,11 +103,6 @@ def main():
         print("Failed to connect to Meshtastic device")
         return
 
-def main():
-    if not client.connect():
-        print("Failed to connect to Meshtastic device")
-        return
-
     try:
         client.list_channels()
         print("\nMeshtastic Client Commands:")
