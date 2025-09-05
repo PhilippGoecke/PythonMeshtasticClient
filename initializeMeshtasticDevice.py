@@ -57,7 +57,7 @@ def get_interface():
                 return tcp_interface.TCPInterface(hostname=host)
         port = env("MESHTASTIC_SERIAL")
         logging.info(f"Connecting via Serial ({port or 'auto-discover'})")
-        return serial_interface.SerialInterface(port=port)
+        return serial_interface.SerialInterface(devPath=port)
 
 REGION_ALIASES = {
         "US": "US",
