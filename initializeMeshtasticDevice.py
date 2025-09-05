@@ -285,7 +285,7 @@ def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
                     pass
                 time.sleep(1)
             else:
-            logging.warning("Timed out waiting for device after Wi-Fi change")
+                logging.warning("Timed out waiting for device after Wi-Fi change")
         else:
             logging.debug("No interface reference available to wait for reboot")
 
