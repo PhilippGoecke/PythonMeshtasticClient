@@ -120,6 +120,7 @@ def main():
         print("\nMeshtastic Client Commands:")
         print("  send <message> - Send a message to the current channel")
         print("  list - List available channels")
+        print("  history - Show recently received messages")
         print("  exit - Exit the client")
         print(f"\nDefault channel is currently '{client.current_channel}'")
 
@@ -145,9 +146,6 @@ def main():
                 print(f"Error logging message {packet}: {e}")
 
         pub.subscribe(_log_message, "meshtastic.receive.data")
-
-        print("  history - Show recently received messages")
-        print("  help - Show commands")
 
         while True:
             command = input("> ").strip()
