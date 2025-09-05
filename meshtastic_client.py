@@ -1,73 +1,136 @@
+#!/usr/bin/env python3
+
 import meshtastic
 import meshtastic.serial_interface
-from pubsub import pub
+import meshtastic.tcp_interface
 import time
-import sys
+import argparse
+from pubsub import pub
 
-def on_receive(packet, interface):
-    """Callback function called when a packet is received"""
-    try:
-        if packet and 'decoded' in packet and 'text' in packet['decoded']:
-            sender = packet.get('fromId', 'N/A')
-            message_text = packet['decoded']['text']
-            print(f"Received from {sender}: {message_text}")
-        else:
-            print(f"Received a non-text packet: {packet}")
-    except Exception as e:
-        print(f"Error processing received packet: {e}")
+class MeshtasticClient:
+    def __init__(self, port=None, host=None):
+        """Initialize the Meshtastic client."""
+        self.interface = None
+        self.port = port
+        self.host = host
+        self.connected = False
 
-def on_connection(interface, topic=pub.AUTO_TOPIC):
-    """Callback function called when a connection is established"""
-    my_node_num = interface.myInfo.my_node_num
-    print(f"Connection established to node {my_node_num}.")
-    print("You can now send messages.")
-    # Set the channel to LongFast
-    print("Setting channel to LongFast...")
-    from meshtastic.config_pb2 import Config
-    interface.localNode.setConfig(lora=Config.LoRaConfig(modem_preset=Config.LoRaConfig.ModemPreset.LONG_FAST))
-    print("Channel set to LongFast.")
+    def connect(self):
+        """Connect to a Meshtastic device via serial or TCP."""
+        try:
+            if self.host:
+                self.interface = meshtastic.tcp_interface.TCPInterface(hostname=self.host)
+            else:
+                self.interface = meshtastic.serial_interface.SerialInterface(devPath=self.port)
+            
+            # Subscribe to receive messages
+            pub.subscribe(self.on_message_received, "meshtastic.receive.data")
+            pub.subscribe(self.on_connection_established, "meshtastic.connection.established")
+            
+            self.connected = True
+            print("Connected to Meshtastic device")
+            return True
+        except Exception as e:
+            print(f"Connection failed: {e}")
+            return False
+
+    def disconnect(self):
+        """Disconnect from the Meshtastic device."""
+        if self.interface:
+            self.interface.close()
+            self.connected = False
+            print("Disconnected from Meshtastic device")
+
+    def on_connection_established(self, interface, topic=pub.AUTO_TOPIC):
+        """Callback when connection is established."""
+        print(f"Connection established: {interface}")
+
+    def on_message_received(self, packet, interface):
+        """Callback when a message is received."""
+        try:
+            if packet.get('decoded', {}).get('portnum') == 'TEXT_MESSAGE_APP':
+                sender = packet.get('fromId', 'Unknown')
+                message = packet.get('decoded', {}).get('text', '')
+                channel = packet.get('channel', 0)
+                channel_name = interface.getChannelByChannelIndex(channel).get('settings', {}).get('name', 'Unknown')
+                
+                print(f"Message from {sender} on channel {channel_name}: {message}")
+        except Exception as e:
+            print(f"Error processing message: {e}")
+
+    def send_message(self, message, channel_name="LongFast"):
+        """Send a message to a specific channel."""
+        if not self.connected:
+            print("Not connected to any device")
+            return False
+        
+        try:
+            # Find the channel index by name
+            channel_index = None
+            for idx, channel in self.interface.localNode.channels.items():
+                if channel.get('settings', {}).get('name') == channel_name:
+                    channel_index = idx
+                    break
+            
+            if channel_index is None:
+                print(f"Channel '{channel_name}' not found")
+                return False
+            
+            self.interface.sendText(message, channelIndex=channel_index)
+            print(f"Message sent on channel {channel_name}: {message}")
+            return True
+        except Exception as e:
+            print(f"Failed to send message: {e}")
+            return False
+
+    def list_channels(self):
+        """List available channels on the device."""
+        if not self.connected:
+            print("Not connected to any device")
+            return
+        
+        print("Available channels:")
+        for idx, channel in self.interface.localNode.channels.items():
+            name = channel.get('settings', {}).get('name', 'Unnamed')
+            print(f"  {idx}: {name}")
 
 def main():
-    """Main function to run the serial client"""
-    interface = None
+    parser = argparse.ArgumentParser(description='Meshtastic Serial Client')
+    parser.add_argument('--port', help='Serial port for the Meshtastic device')
+    parser.add_argument('--host', help='Hostname/IP for TCP connection')
+    args = parser.parse_args()
+    
+    client = MeshtasticClient(port=args.port, host=args.host)
+    
+    if not client.connect():
+        print("Failed to connect to Meshtastic device")
+        return
+    
     try:
-        # By default, SerialInterface will try to find the first Meshtastic device
-        # You can specify a port like this: meshtastic.serial_interface.SerialInterface(port='/dev/ttyUSB0')
-        print("Connecting to Meshtastic device...")
-        interface = meshtastic.serial_interface.SerialInterface()
-
-        # Subscribe to receive events
-        pub.subscribe(on_receive, "meshtastic.receive")
-        pub.subscribe(on_connection, "meshtastic.connection.established")
-
-        print("Listening for messages... (Press Ctrl+C to send a message or exit)")
-
-        # Keep the script running to listen for incoming messages
+        client.list_channels()
+        
+        print("\nMeshtastic Client Commands:")
+        print("  send <message> - Send a message to LongFast channel")
+        print("  list - List available channels")
+        print("  exit - Exit the client")
+        
         while True:
-            try:
-                # The script will block here until Ctrl+C is pressed
-                time.sleep(86400) # Sleep for a long time
-            except KeyboardInterrupt:
-                # Handle Ctrl+C to allow sending a message
-                try:
-                    message = input("\nEnter message to send (or type 'exit' to quit): ")
-                    if message.lower() == 'exit':
-                        break
-                    if message:
-                        print(f"Sending message: {message}")
-                        interface.sendText(message)
-                except EOFError:
-                    # Handle Ctrl+D
-                    print("\nExiting...")
-                    break
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        sys.exit(1)
+            command = input("> ").strip()
+            
+            if command == "exit":
+                break
+            elif command == "list":
+                client.list_channels()
+            elif command.startswith("send "):
+                message = command[5:]
+                client.send_message(message, "LongFast")
+            else:
+                print("Unknown command. Available commands: send, list, exit")
+                
+    except KeyboardInterrupt:
+        print("\nExiting...")
     finally:
-        if interface:
-            print("Closing serial interface.")
-            interface.close()
+        client.disconnect()
 
 if __name__ == "__main__":
     main()
