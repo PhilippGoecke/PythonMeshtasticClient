@@ -26,6 +26,10 @@ import base64
 import secrets
 import logging
 from typing import Optional
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Lazy import meshtastic to allow graceful error if not installed
 try:
