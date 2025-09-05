@@ -41,6 +41,8 @@ except ImportError as e:
         sys.exit(1)
 
 def env(name: str, default: Optional[str] = None) -> Optional[str]:
+        """Get environment variable or default if unset or empty"""
+        print(f"loading env(name: {name}, default: {default})")
         v = os.getenv(name, default)
         return v if v not in ("", None) else default
 
