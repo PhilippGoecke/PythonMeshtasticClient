@@ -31,7 +31,10 @@ from typing import Optional
 try:
         import meshtastic
         from meshtastic import serial_interface, tcp_interface
-        from meshtastic.protobufs import config_pb2
+        try:
+                from meshtastic.protobufs import config_pb2  # newer package layout
+        except ImportError:
+                from meshtastic import config_pb2  # older package layout
 except ImportError as e:
         print(f"meshtastic library not installed. Run: pip install meshtastic (ImportError: {e})", file=sys.stderr)
 
