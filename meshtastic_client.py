@@ -164,7 +164,7 @@ def main():
                 else:
                     print("Received messages:")
                     for line in received_messages[-50:]:
-                    print("  " + line)
+                        print("  " + line)
             else:
                 print("Commands: send <msg>, list, history, exit")
     except KeyboardInterrupt:
