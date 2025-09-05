@@ -177,6 +177,8 @@ def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
             ]
 
             return subprocess.run(cmd, capture_output=True, text=True)
+        except Exception as e:
+            logging.exception(f"Error disabling Wi-Fi: {e}")
 
     logging.info(f"Configuring Wi-Fi SSID={ssid} psk={'(provided)' if psk else '(none)'}")
     try:
