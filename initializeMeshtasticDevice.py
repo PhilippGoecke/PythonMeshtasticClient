@@ -90,51 +90,29 @@ def write_config(node, **sections):
             return node.writeConfig(**sections)
 
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
-        if iface and hasattr(iface, "writeConfig"):
-            return iface.writeConfig(**sections)
 
-        # iface = meshtastic.serial_interface.SerialInterface()
-        #if iface and hasattr(iface, "localNode"):
-        #    return iface.localNode.setOwner(long_name, short_name)
-
-        raise AttributeError("Neither node nor its interface provides writeConfig()")
+            return iface.localNode.setOwner(long_name, short_name)
 
 REGION_ALIASES = {
+        # Only allowed region codes (input) mapped to Meshtastic enum names (values)
         "US": "US",
-        "EU": "EU868",
-        "EU868": "EU868",
-        "EU433": "EU433",
-        "AU": "ANZ",
-        "ANZ": "ANZ",
+        "EU_433": "EU433",
+        "EU_868": "EU868",
         "CN": "CN",
         "JP": "JP",
+        "ANZ": "ANZ",
         "KR": "KR",
         "TW": "TW",
         "RU": "RU",
         "IN": "IN",
-        "NZ865": "NZ865",
-        "TH": "TH",
-        "UA": "UA",
-        "LORA_24": "LORA_24",
 }
-
-def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
-        if long_name is None and short_name is None:
-                logging.info("No owner specified, skipping owner configuration")
-                return
-        logging.info(f"Setting owner to {long_name} ({short_name})")
-        #write_config(node, owner={"long_name": long_name, "short_name": short_name})
-        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
-        # iface = meshtastic.serial_interface.SerialInterface()
-        if iface and hasattr(iface, "localNode"):
-            return iface.localNode.setOwner(long_name, short_name)
 
 def set_region(node, desired_region: str):
         if not desired_region:
             logging.info("No region specified; skipping region configuration")
             return
-        desired_region = desired_region.strip().upper()
-        desired_region = REGION_ALIASES.get(desired_region, desired_region)
+        #desired_region = desired_region.strip().upper()
+        #desired_region = REGION_ALIASES.get(desired_region, desired_region)
 
         # Validate region against enum
         region_enum = getattr(config_pb2.Config.LoRaConfig.Region, desired_region, None)
