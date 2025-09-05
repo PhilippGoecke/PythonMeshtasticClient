@@ -141,8 +141,8 @@ def main():
                         # Optional: limit history size
                         if len(received_messages) > 200:
                             received_messages.pop(0)
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Error logging message {packet}: {e}")
 
         pub.subscribe(_log_message, "meshtastic.receive.data")
 
