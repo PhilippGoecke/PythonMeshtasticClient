@@ -84,15 +84,14 @@ def write_config(node, **sections):
         """
         Compatibility helper mirroring writeConfig similarly.
         """
-        print(f"write_config(node: {node}, sections: {list(sections.keys())})")
+        print(f"write_config(node: {node}, sections: {list(sections.keys())}")
 
         if hasattr(node, "writeConfig"):
             return node.writeConfig(**sections)
 
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
-        if iface and hasattr(iface, "localNode") and hasattr(iface.localNode, "writeConfig"):
-            return iface.localNode.writeConfig(**sections)
-        raise AttributeError("No writeConfig available on node or its interface")
+        if hasattr(iface, "localNode"):
+            return iface.localNode.setOwner(long_name, short_name)
 
 def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
         if long_name is None and short_name is None:
@@ -103,12 +102,11 @@ def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
         if iface and hasattr(iface, "localNode"):
             return iface.localNode.setOwner(long_name, short_name)
+
 def set_region(node, desired_region: str):
         if not desired_region:
             logging.info("No region specified; skipping region configuration")
             return
-
-        region_key = desired_region.strip().upper()
 
         # Try to get enum container (handle older/newer layouts)
         RegionEnumContainer = getattr(config_pb2.Config.LoRaConfig, "Region", None) or getattr(config_pb2, "Region", None)
@@ -116,7 +114,7 @@ def set_region(node, desired_region: str):
             logging.warning("Region enum not found in protobuf definitions; skipping")
             return
 
-        region_enum = getattr(RegionEnumContainer, region_key, None)
+        region_enum = getattr(RegionEnumContainer, desired_region, None)
         if region_enum is None:
             logging.warning(f"Region '{desired_region}' is not valid; skipping")
             return
@@ -129,8 +127,9 @@ def set_region(node, desired_region: str):
                 current_name = RegionEnumContainer.Name(current_val)
             except Exception:
                 current_name = str(current_val)
-            if current_name == region_key:
-                logging.info(f"LoRa region already set to {region_key}")
+            if current_name == desired_region:
+                logging.info(f"LoRa region already set to {desired_region}")
+
 def set_role(node, role: Optional[str]):
         if not role:
             return
@@ -138,13 +137,6 @@ def set_role(node, role: Optional[str]):
         if role_enum is None:
             logging.warning(f"Role '{role}' not valid, skipping")
             return
-        cfg = get_config(node)
-        if cfg.device.role == role_enum:
-            logging.info(f"Device role already {role}")
-            return
-        cfg.device.role = role_enum
-        logging.info(f"Setting device role to {role}")
-        write_config(node, device={"role": role})
         cfg = get_config(node)
         if cfg.device.role == role_enum:
             logging.info(f"Device role already {role}")
@@ -164,32 +156,10 @@ def set_position_broadcast(node, enabled: bool):
         # 0 disables; small positive enables
         logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
         node.writeConfig(position={"position_broadcast_secs": want})
-def set_channel(node, index: int, name: Optional[str], psk: Optional[str]):
-        if name or psk:
-                logging.info(f"Configuring channel index={index} name={name} psk={'(provided)' if psk else '(none)'}")
-                node.setChannel(channelIndex=index, name=name, psk=psk)
 
-def resolve_psk(psk: Optional[str]) -> Optional[str]:
-        """
-        Resolve PSK:
-        - None/empty -> None
-        - 'random' -> random 16-byte key (base64, stripped '=')
-        - If base64 already -> return as-is (validated)
-        - Otherwise return original (library will hash 16-char cleartext)
-        """
-        if not psk:
-                return None
-        if psk.lower() == "random":
-                key = secrets.token_bytes(16)
-                return base64.b64encode(key).decode().rstrip("=")
-        # Try base64 validation
-        try:
-                if len(psk) % 4 == 0:
-                        base64.b64decode(psk, validate=True)
-                        return psk
-        except Exception:
-                pass
-        return psk
+def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
+        if not ssid:
+                return
         logging.info("Configuring Wi-Fi credentials")
         node.writeConfig(wifi={"ssid": ssid, "psk": psk or ""})
 
