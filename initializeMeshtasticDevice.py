@@ -90,59 +90,58 @@ def write_config(node, **sections):
             return node.writeConfig(**sections)
 
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
-
+        if hasattr(iface, "localNode"):
             return iface.localNode.setOwner(long_name, short_name)
 
 def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
         if long_name is None and short_name is None:
-                logging.info("No owner specified, skipping owner configuration")
-                return
+            logging.info("No owner specified, skipping owner configuration")
+            return
+
         logging.info(f"Setting owner to {long_name} ({short_name})")
-        #write_config(node, owner={"long_name": long_name, "short_name": short_name})
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
-        # iface = meshtastic.serial_interface.SerialInterface()
         if iface and hasattr(iface, "localNode"):
-                return iface.localNode.setOwner(long_name, short_name)
+            return iface.localNode.setOwner(long_name, short_name)
 
 def set_region(node, desired_region: str):
         if not desired_region:
-                logging.info("No region specified; skipping region configuration")
-                return
+            logging.info("No region specified; skipping region configuration")
+            return
 
         # Validate region against enum
         region_enum = getattr(config_pb2.Config.LoRaConfig.Region, desired_region, None)
         if region_enum is None:
-                logging.warning(f"Region '{desired_region}' is not valid; skipping")
-                return
+            logging.warning(f"Region '{desired_region}' is not valid; skipping")
+            return
 
         # Check current region
         try:
-                cfg = get_config(node)
-                current_val = cfg.lora.region
-                try:
-                        current_name = config_pb2.Config.LoRaConfig.Region.Name(current_val)
-                except Exception:
-                        current_name = str(current_val)
-                if current_name == desired_region:
-                        logging.info(f"LoRa region already set to {desired_region}")
-                        return
+            cfg = get_config(node)
+            current_val = cfg.lora.region
+            try:
+                current_name = config_pb2.Config.LoRaConfig.Region.Name(current_val)
+            except Exception:
+                current_name = str(current_val)
+            if current_name == desired_region:
+                logging.info(f"LoRa region already set to {desired_region}")
+                return
         except Exception as e:
-                logging.debug(f"Could not read current region (proceeding to set): {e}")
+            logging.debug(f"Could not read current region (proceeding to set): {e}")
 
         logging.info(f"Setting LoRa region to {desired_region}")
         node.writeConfig(lora={"region": desired_region})
 
 def set_role(node, role: Optional[str]):
         if not role:
-                return
+            return
         role_enum = getattr(config_pb2.Config.DeviceConfig.Role, role.upper(), None)
         if role_enum is None:
-                logging.warning(f"Role '{role}' not valid, skipping")
-                return
+            logging.warning(f"Role '{role}' not valid, skipping")
+            return
         cfg = get_config(node)
         if cfg.device.role == role_enum:
-                logging.info(f"Device role already {role}")
-                return
+            logging.info(f"Device role already {role}")
+            return
         cfg.device.role = role_enum
         logging.info(f"Setting device role to {role}")
         write_config(node, device={"role": role})
