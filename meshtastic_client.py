@@ -23,7 +23,8 @@ def on_connection(interface, topic=pub.AUTO_TOPIC):
     print("You can now send messages.")
     # Set the channel to LongFast
     print("Setting channel to LongFast...")
-    interface.localNode.set_config_lora(modem_preset='LONG_FAST')
+    from meshtastic.config_pb2 import Config
+    interface.localNode.setConfig(lora=Config.LoRaConfig(modem_preset=Config.LoRaConfig.ModemPreset.LONG_FAST))
     print("Channel set to LongFast.")
 
 def main():
