@@ -59,6 +59,28 @@ def get_interface():
         logging.info(f"Connecting via Serial ({port or 'auto-discover'})")
         return serial_interface.SerialInterface(devPath=port)
 
+def get_config(node):
+        """
+        Compatibility helper: some versions expose getConfig on the node, others only on the interface.
+        """
+        if hasattr(node, "getConfig"):
+            return node.getConfig()
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface and hasattr(iface, "getConfig"):
+            return iface.getConfig()
+        raise AttributeError("Neither node nor its interface provides getConfig()")
+
+def write_config(node, **sections):
+        """
+        Compatibility helper mirroring writeConfig similarly.
+        """
+        if hasattr(node, "writeConfig"):
+            return node.writeConfig(**sections)
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface and hasattr(iface, "writeConfig"):
+            return iface.writeConfig(**sections)
+        raise AttributeError("Neither node nor its interface provides writeConfig()")
+
 REGION_ALIASES = {
         "US": "US",
         "EU": "EU868",
@@ -77,28 +99,6 @@ REGION_ALIASES = {
         "UA": "UA",
         "LORA_24": "LORA_24",
 }
-
-def normalize_region(r: Optional[str]) -> Optional[str]:
-        if not r:
-                return None
-        r = r.upper().strip()
-        return REGION_ALIASES.get(r, r)
-
-def resolve_psk(raw: Optional[str]) -> Optional[str]:
-        if not raw:
-                return None
-        if raw.lower() == "random":
-                key = secrets.token_bytes(16)
-                return base64.b64encode(key).decode()
-        # If it's exactly 16 chars (likely passphrase), Meshtastic will hash internally; just return as-is.
-        # If it decodes as base64 cleanly, keep it.
-        try:
-                base64.b64decode(raw, validate=True)
-                return raw
-        except Exception:
-                return raw  # treat as plain text passphrase
-        # Meshtastic Python API expects setChannel(psk=string)
-
 def set_region(node, desired_region: str):
         if not desired_region:
                 logging.info("No region specified, skipping region configuration")
@@ -108,7 +108,7 @@ def set_region(node, desired_region: str):
                 logging.warning("Region value not recognized, skipping")
                 return
         try:
-                current = node.getConfig().lora.region
+                current = get_config(node).lora.region
         except Exception:
                 current = None
         if current and current.name == desired_region:
@@ -116,17 +116,39 @@ def set_region(node, desired_region: str):
                 return
         logging.info(f"Setting region to {desired_region}")
         # Shorthand dict form supported by library
-        node.writeConfig(lora={"region": desired_region})
+        write_config(node, lora={"region": desired_region})
+        except Exception:
+                return raw  # treat as plain text passphrase
+        # Meshtastic Python API expects setChannel(psk=string)
 
-def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
-        if not long_name and not short_name:
-                return
-        logging.info(f"Setting owner long='{long_name}' short='{short_name}'")
-        node.setOwner(longName=long_name, shortName=short_name)
-
+def set_region(node, desired_region: str):
+        if not desired_region:
+                logging.info("No region specified, skipping region configuration")
 def set_role(node, role: Optional[str]):
         if not role:
                 return
+        role_enum = getattr(config_pb2.Config.DeviceConfig.Role, role.upper(), None)
+        if role_enum is None:
+                logging.warning(f"Role '{role}' not valid, skipping")
+                return
+        cfg = get_config(node)
+        if cfg.device.role == role_enum:
+                logging.info(f"Device role already {role}")
+                return
+        cfg.device.role = role_enum
+        logging.info(f"Setting device role to {role}")
+        write_config(node, device={"role": role})
+        node.writeConfig(lora={"region": desired_region})
+def set_position_broadcast(node, enabled: bool):
+        cfg = get_config(node)
+        cur = cfg.position.position_broadcast_secs
+        want = 15 if enabled else 0
+        if (enabled and cur > 0) or (not enabled and cur == 0):
+                logging.info("Position broadcast already desired state")
+                return
+        # 0 disables; small positive enables
+        logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
+        write_config(node, position={"position_broadcast_secs": want})
         role_enum = getattr(config_pb2.Config.DeviceConfig.Role, role.upper(), None)
         if role_enum is None:
                 logging.warning(f"Role '{role}' not valid, skipping")
