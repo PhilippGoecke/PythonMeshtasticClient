@@ -7,6 +7,7 @@ import time
 import argparse
 from pubsub import pub
 import readline
+from meshtastic.radioconfig_pb2 import RegionCode
 
 class MeshtasticClient:
     def __init__(self, port=None, host=None):
@@ -135,6 +136,31 @@ class MeshtasticClient:
         except Exception as e:
             print(f"Failed to add/configure channel: {e}")
 
+    def set_region(self, region_code):
+        """Set the region for the device."""
+        if not self.connected:
+            print("Not connected to any device")
+            return
+
+        try:
+            # Validate region
+            if region_code not in RegionCode.keys():
+                print(f"Invalid region code '{region_code}'. Use 'list_regions' to see available codes.")
+                return
+
+            print(f"Setting region to {region_code}...")
+            self.interface.localNode.setRegion(region_code)
+            print(f"Region successfully set to {region_code}. The device may reboot.")
+        except Exception as e:
+            print(f"Failed to set region: {e}")
+
+    def list_regions(self):
+        """List available region codes."""
+        print("Available region codes:")
+        for region_name in RegionCode.keys():
+            if region_name != "UNSET":
+                print(f"  {region_name}")
+
 def main():
     parser = argparse.ArgumentParser(description='Meshtastic Serial Client')
     parser.add_argument('--port', help='Serial port for the Meshtastic device')
@@ -155,6 +181,8 @@ def main():
         print("  set_channel <channel_name> - Set the default channel for sending messages")
         print("  add_channel <name> <psk> <uplink_on|off> <downlink_on|off> - Add/configure a channel")
         print("  list - List available channels")
+        print("  set_region <region_code> - Set the device region (e.g., US, EU_868)")
+        print("  list_regions - List available region codes")
         print("  exit - Exit the client")
         print(f"\nDefault channel is currently '{client.current_channel}'")
         
@@ -165,9 +193,18 @@ def main():
                 break
             elif command == "list":
                 client.list_channels()
+            elif command == "list_regions":
+                client.list_regions()
             elif command.startswith("set_channel "):
                 client.current_channel = command[12:]
                 print(f"Default channel set to '{client.current_channel}'")
+            elif command.startswith("set_region "):
+                parts = command.split()
+                if len(parts) == 2:
+                    region_code = parts[1]
+                    client.set_region(region_code)
+                else:
+                    print("Usage: set_region <region_code>")
             elif command.startswith("send "):
                 message = command[5:]
                 client.send_message(message, client.current_channel)
