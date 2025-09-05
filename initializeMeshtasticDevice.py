@@ -121,7 +121,7 @@ def set_region(node, desired_region: str):
         if not desired_region:
                 logging.info("No region specified, skipping region configuration")
                 return
-        desired_region = normalize_region(desired_region)
+        desired_region = REGION_ALIASES.get(desired_region.strip().upper())
         if not desired_region:
                 logging.warning("Region value not recognized, skipping")
                 return
