@@ -103,6 +103,33 @@ class MeshtasticClient:
             channel_name = ch.settings.name or f"Unnamed channel {ch.index}"
             print(f"  Index {ch.index}: {channel_name}")
 
+    def add_channel(self, name, psk, uplink_enabled, downlink_enabled):
+        """Add or update a channel with the given settings."""
+        if not self.connected:
+            print("Not connected to any device")
+            return
+
+        try:
+            print(f"Configuring channel '{name}'...")
+            # The addChannel method finds an empty slot and configures it
+            ch_index = self.interface.localNode.addChannel(name, psk.encode('utf-8'))
+            
+            # Now set the additional properties
+            ch = self.interface.localNode.channels[ch_index]
+            ch.settings.uplink_enabled = uplink_enabled
+            ch.settings.downlink_enabled = downlink_enabled
+            
+            # Write the updated settings to the device
+            self.interface.localNode.writeChannelSettings(ch_index)
+            
+            print(f"Successfully configured channel '{name}' at index {ch_index}.")
+            print(f"  PSK: {'*' * len(psk)}")
+            print(f"  Uplink: {'Enabled' if uplink_enabled else 'Disabled'}")
+            print(f"  Downlink: {'Enabled' if downlink_enabled else 'Disabled'}")
+            
+        except Exception as e:
+            print(f"Failed to add/configure channel: {e}")
+
 def main():
     parser = argparse.ArgumentParser(description='Meshtastic Serial Client')
     parser.add_argument('--port', help='Serial port for the Meshtastic device')
@@ -121,6 +148,7 @@ def main():
         print("\nMeshtastic Client Commands:")
         print("  send <message> - Send a message to the current channel")
         print("  set_channel <channel_name> - Set the default channel for sending messages")
+        print("  add_channel <name> <psk> <uplink_on|off> <downlink_on|off> - Add/configure a channel")
         print("  list - List available channels")
         print("  exit - Exit the client")
         print(f"\nDefault channel is currently '{client.current_channel}'")
@@ -138,8 +166,17 @@ def main():
             elif command.startswith("send "):
                 message = command[5:]
                 client.send_message(message, client.current_channel)
+            elif command.startswith("add_channel "):
+                parts = command.split()
+                if len(parts) == 5:
+                    name, psk, uplink, downlink = parts[1], parts[2], parts[3], parts[4]
+                    uplink_enabled = uplink.lower() == 'on'
+                    downlink_enabled = downlink.lower() == 'on'
+                    client.add_channel(name, psk, uplink_enabled, downlink_enabled)
+                else:
+                    print("Usage: add_channel <name> <psk> <uplink_on|off> <downlink_on|off>")
             else:
-                print("Unknown command. Available commands: send, list, exit")
+                print("Unknown command. Type 'list' for commands.")
                 
     except KeyboardInterrupt:
         print("\nExiting...")
