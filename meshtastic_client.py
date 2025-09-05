@@ -155,13 +155,6 @@ class MeshtasticClient:
             print("Not connected to any device")
             return
         try:
-            valid_names = []
-            try:
-    def set_region(self, region_code):
-        if not self.connected:
-            print("Not connected to any device")
-            return
-        try:
             valid_names = list(RegionCode.__members__.keys())
             if region_code not in valid_names:
                 print(f"Invalid region code '{region_code}'. Use 'list_regions' to see available codes.")
