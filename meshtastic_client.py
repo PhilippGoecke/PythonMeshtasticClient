@@ -46,6 +46,18 @@ class MeshtasticClient:
             print(f"Failed to connect: {e}")
             return False
 
+    def list_channels(self):
+        if not self.connected:
+            print("Not connected to any device")
+            return
+        print("Available channels:")
+        if not self.interface.localNode.channels:
+            print("  No channels found.")
+            return
+        for ch in self.interface.localNode.channels:
+            channel_name = ch.settings.name or f"Unnamed channel {ch.index}"
+            print(f"  Index {ch.index}: {channel_name}")
+
     def disconnect(self):
         if self.interface:
             self.interface.close()
