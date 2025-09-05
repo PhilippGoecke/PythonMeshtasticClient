@@ -18,11 +18,12 @@ def load_env(path=".env"):
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
-            k, v = line.split("=", 1)
-            k = k.strip()
-            v = v.strip().strip('"').strip("'")
-            if k and k not in os.environ:
-                os.environ[k] = v
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                print(f"Loading {key} from {path}: {value}")
+                os.environ[key] = value
 
 class MeshtasticClient:
     def __init__(self, port=None, host=None):
