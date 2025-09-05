@@ -85,11 +85,18 @@ def write_config(node, **sections):
         Compatibility helper mirroring writeConfig similarly.
         """
         print(f"write_config(node: {node}, sections: {list(sections.keys())}")
+
         if hasattr(node, "writeConfig"):
             return node.writeConfig(**sections)
+
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
         if iface and hasattr(iface, "writeConfig"):
             return iface.writeConfig(**sections)
+
+        # iface = meshtastic.serial_interface.SerialInterface()
+        #if iface and hasattr(iface, "localNode"):
+        #    return iface.localNode.setOwner(long_name, short_name)
+
         raise AttributeError("Neither node nor its interface provides writeConfig()")
 
 REGION_ALIASES = {
@@ -116,7 +123,11 @@ def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
                 logging.info("No owner specified, skipping owner configuration")
                 return
         logging.info(f"Setting owner to {long_name} ({short_name})")
-        write_config(node, owner={"long_name": long_name, "short_name": short_name})
+        #write_config(node, owner={"long_name": long_name, "short_name": short_name})
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        # iface = meshtastic.serial_interface.SerialInterface()
+        if iface and hasattr(iface, "localNode"):
+            return iface.localNode.setOwner(long_name, short_name)
 
 def set_region(node, desired_region: str):
         if not desired_region:
