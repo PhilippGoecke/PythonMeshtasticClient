@@ -201,9 +201,38 @@ def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
         logging.exception(f"Error configuring Wi-Fi: {e}")
 
 def set_channel(node, index: int, name: Optional[str], psk: Optional[str]):
-        if name or psk:
-                logging.info(f"Configuring channel index={index} name={name} psk={'(provided)' if psk else '(none)'}")
-                node.setChannel(channelIndex=index, name=name, psk=psk)
+    # meshtastic --ch-set name "My Channel" --ch-set psk random --ch-set uplink_enabled true --ch-index 4
+    logging.info(f"Configuring channel index {index}")
+    if name is None and psk is None:
+        logging.info("No channel settings provided; skipping channel configuration")
+        return
+
+    cmd = ["meshtastic", "--ch-index", str(index)]
+
+    if name:
+        cmd += ["--ch-set", "name", name]
+
+    if psk:
+        if isinstance(psk, bytes):
+            psk_value = base64.b64encode(psk).decode()
+        else:
+            psk_value = psk
+        cmd += ["--ch-set", "psk", psk_value]
+
+    # Always ensure uplink is enabled (matches requested example)
+    cmd += ["--ch-set", "uplink_enabled", "true"]
+
+    logging.debug(f"Running channel config command: {' '.join(cmd)}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logging.error(f"Channel configuration failed (exit {result.returncode}): {result.stderr.strip()}")
+        else:
+            logging.info(f"Channel {index} configured: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found; cannot configure channel")
+    except Exception as e:
+        logging.exception(f"Unexpected error configuring channel {index}: {e}")
 
 def main():
         if bool_env("MESHTASTIC_VERBOSE"):
