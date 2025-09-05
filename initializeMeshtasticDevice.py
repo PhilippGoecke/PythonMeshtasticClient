@@ -151,15 +151,22 @@ def set_role(node, desired_role: Optional[str]):
         logging.exception(f"Unexpected error setting role: {e}")
 
 def set_position_broadcast(node, enabled: bool):
-        cfg = get_config(node)
-        cur = cfg.position.position_broadcast_secs
-        want = 15 if enabled else 0
-        if (enabled and cur > 0) or (not enabled and cur == 0):
-                logging.info("Position broadcast already desired state")
-                return
-        # 0 disables; small positive enables
-        logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
-        node.writeConfig(position={"position_broadcast_secs": want})
+    # Configure smart position broadcast flag via CLI
+    logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
+    try:
+        result = subprocess.run(
+        ["meshtastic", "--set", "position.position_broadcast_smart_enabled", enabled],
+        capture_output=True,
+        text=True
+        )
+        if result.returncode != 0:
+            logging.error(f"Failed to set position.position_broadcast_smart_enabled={enabled}: {result.stderr.strip()}")
+        else:
+            logging.info(f"Set position.position_broadcast_smart_enabled={enabled}: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found; cannot set position.position_broadcast_smart_enabled")
+    except Exception as e:
+        logging.exception(f"Error setting position.position_broadcast_smart_enabled: {e}")
 
 def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
         if not ssid:
