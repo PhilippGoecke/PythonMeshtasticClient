@@ -57,3 +57,4 @@ python3 meshtastic_client.py
 -   [Official Meshtastic Project Website](https://meshtastic.org/)
 -   [`meshtastic` on PyPI](https://pypi.org/project/meshtastic/)
 -   [Meshtastic GitHub Repository](https://github.com/meshtastic/python)
+-   https://github.com/probsJustin/meshtastic_client.git
