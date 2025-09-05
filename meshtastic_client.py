@@ -21,6 +21,10 @@ def on_connection(interface, topic=pub.AUTO_TOPIC):
     my_node_num = interface.myInfo.my_node_num
     print(f"Connection established to node {my_node_num}.")
     print("You can now send messages.")
+    # Set the channel to LongFast
+    print("Setting channel to LongFast...")
+    interface.setURL("https://www.meshtastic.org/d/#ChVAGyIMTG9uZ0Zhc3QYBCABKgEBAA")
+    print("Channel set to LongFast.")
 
 def main():
     """Main function to run the serial client"""
