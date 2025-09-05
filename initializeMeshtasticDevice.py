@@ -155,7 +155,7 @@ def set_position_broadcast(node, enabled: bool):
     logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
     try:
         result = subprocess.run(
-        ["meshtastic", "--set", "position.position_broadcast_smart_enabled", enabled],
+        ["meshtastic", "--set", "position.position_broadcast_smart_enabled", "true" if enabled else "false"],
         capture_output=True,
         text=True
         )
