@@ -8,11 +8,6 @@ import time
 import argparse
 from pubsub import pub
 import readline
-try:
-    from meshtastic.mesh_pb2 import RegionCode
-except (ModuleNotFoundError, ImportError):
-    RegionCode = None
-    print("Warning: Could not import meshtastic.mesh_pb2.RegionCode; region features will be disabled. Upgrade 'meshtastic' package.")
 
 # --- NEW: simple .env loader (no external dependency) ---
 def load_env(path=".env"):
@@ -34,7 +29,6 @@ class MeshtasticClient:
         self.interface = None
         self.port = port
         self.host = host
-        self.current_channel = "Unnamed channel 0"
         self.connected = False
 
     def connect(self):
@@ -98,51 +92,6 @@ class MeshtasticClient:
             print(f"Failed to send message: {e}")
             return False
 
-    def list_channels(self):
-        if not self.connected:
-            print("Not connected to any device")
-            return
-        print("Available channels:")
-        if not self.interface.localNode.channels:
-            print("  No channels found.")
-            return
-        for ch in self.interface.localNode.channels:
-            channel_name = ch.settings.name or f"Unnamed channel {ch.index}"
-            print(f"  Index {ch.index}: {channel_name}")
-
-    def add_channel(self, name, psk, uplink_enabled, downlink_enabled):
-        if not self.connected:
-            print("Not connected to any device")
-            return
-        try:
-            print(f"Configuring channel '{name}'...")
-            ch_index = self.interface.localNode.addChannel(name, psk.encode('utf-8'))
-            ch = self.interface.localNode.channels[ch_index]
-            ch.settings.uplink_enabled = uplink_enabled
-            ch.settings.downlink_enabled = downlink_enabled
-            self.interface.localNode.writeChannelSettings(ch_index)
-            print(f"Successfully configured channel '{name}' at index {ch_index}.")
-            print(f"  PSK: {'*' * len(psk)}")
-            print(f"  Uplink: {'Enabled' if uplink_enabled else 'Disabled'}")
-            print(f"  Downlink: {'Enabled' if downlink_enabled else 'Disabled'}")
-    def set_region(self, region_code):
-        if not self.connected:
-            print("Not connected to any device")
-            return
-        if RegionCode is None:
-            print("Region setting not supported (RegionCode enum missing). Upgrade 'meshtastic' package.")
-            return
-        try:
-            valid_names = list(RegionCode.__members__.keys())
-            if region_code not in valid_names or region_code == "UNSET":
-                print(f"Invalid region code '{region_code}'. Use 'list_regions' to see available codes.")
-                return
-            print(f"Setting region to {region_code}...")
-            self.interface.localNode.setRegion(region_code)
-            print(f"Region successfully set to {region_code}. The device may reboot.")
-        except Exception as e:
-            print(f"Failed to set region: {e}")
-
 def main():
     load_env()
     parser = argparse.ArgumentParser(description="Meshtastic client")
@@ -153,15 +102,8 @@ def main():
     if not client.connect():
         print("Failed to connect to Meshtastic device")
         return
-                print(f"  {region_name}")
 
 def main():
-    def list_regions(self):
-        print("Available region codes:")
-        names = list(RegionCode.__members__.keys())
-        for region_name in names:
-            if region_name != "UNSET":
-                print(f"  {region_name}")
     if not client.connect():
         print("Failed to connect to Meshtastic device")
         return
