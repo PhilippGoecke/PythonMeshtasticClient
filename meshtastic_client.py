@@ -89,7 +89,7 @@ class MeshtasticClient:
     def list_channels(self):
         """List available channels on the device."""
         if not self.connected:
-        print("Available channels:")
+            print("Available channels:")
         for ch in self.interface.localNode.channels:
             print(f"  {ch.index}: {ch.settings.name or f'Channel {ch.index}'}")
         print("Available channels:")
