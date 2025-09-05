@@ -53,7 +53,11 @@ import time
 import argparse
 from pubsub import pub
 import readline
-from meshtastic.mesh_pb2 import RegionCode
+try:
+    from meshtastic.mesh_pb2 import RegionCode
+except (ModuleNotFoundError, ImportError):
+    RegionCode = None
+    print("Warning: Could not import meshtastic.mesh_pb2.RegionCode; region features will be disabled. Upgrade 'meshtastic' package.")
 
 # --- NEW: simple .env loader (no external dependency) ---
 def load_env(path=".env"):
@@ -90,23 +94,18 @@ class MeshtasticClient:
             print("Connected to Meshtastic device")
             return True
         except Exception as e:
-            print(f"Connection failed: {e}")
-            return False
-
-    # --- NEW: bootstrap region from env if provided ---
     def bootstrap_region_from_env(self):
         # Load desired region from environment.
-        # Examples: US, EU_868, EU_433, AU_915, NZ_915, IN_865, JP, KR, RU_433, RU_868
-        # Set in .env like: MESHTASTIC_REGION=US
         region_code = os.getenv("MESHTASTIC_REGION")
         if not region_code:
             return
         region_code = region_code.strip()
-        # Check existing region to avoid unnecessary write
+        if RegionCode is None:
+            print("Region code in env provided but RegionCode enum unavailable; skipping.")
+            return
         try:
             current_region_val = self.interface.localNode.radioConfig.preferences.region
             current_region_name = None
-            # RegionCode from mesh_pb2 is an IntEnum-like class; iterate __members__
             for name, enum_val in RegionCode.__members__.items():
                 if enum_val == current_region_val:
                     current_region_name = name
@@ -114,6 +113,10 @@ class MeshtasticClient:
             if current_region_name == region_code:
                 print(f"Region already set to {region_code}, skipping.")
                 return
+        except Exception:
+            pass
+        print(f"Bootstrapping region from env: {region_code}")
+        self.set_region(region_code)
         except Exception:
             pass
         print(f"Bootstrapping region from env: {region_code}")
@@ -192,16 +195,16 @@ class MeshtasticClient:
             print(f"  PSK: {'*' * len(psk)}")
             print(f"  Uplink: {'Enabled' if uplink_enabled else 'Disabled'}")
             print(f"  Downlink: {'Enabled' if downlink_enabled else 'Disabled'}")
-        except Exception as e:
-            print(f"Failed to add/configure channel: {e}")
-
     def set_region(self, region_code):
         if not self.connected:
             print("Not connected to any device")
             return
+        if RegionCode is None:
+            print("Region setting not supported (RegionCode enum missing). Upgrade 'meshtastic' package.")
+            return
         try:
             valid_names = list(RegionCode.__members__.keys())
-            if region_code not in valid_names:
+            if region_code not in valid_names or region_code == "UNSET":
                 print(f"Invalid region code '{region_code}'. Use 'list_regions' to see available codes.")
                 return
             print(f"Setting region to {region_code}...")
@@ -209,8 +212,17 @@ class MeshtasticClient:
             print(f"Region successfully set to {region_code}. The device may reboot.")
         except Exception as e:
             print(f"Failed to set region: {e}")
-        for region_name in names:
-            if region_name != "UNSET":
+
+def main():
+    load_env()
+    parser = argparse.ArgumentParser(description="Meshtastic client")
+    parser.add_argument("--port", help="Serial port of Meshtastic device")
+    parser.add_argument("--host", help="TCP host/IP of Meshtastic device")
+    args = parser.parse_args()
+    client = MeshtasticClient(port=args.port, host=args.host)
+    if not client.connect():
+        print("Failed to connect to Meshtastic device")
+        return
                 print(f"  {region_name}")
 
 def main():
