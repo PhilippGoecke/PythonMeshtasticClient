@@ -89,12 +89,17 @@ class MeshtasticClient:
     def list_channels(self):
         """List available channels on the device."""
         if not self.connected:
-            print("Available channels:")
-        for ch in self.interface.localNode.channels:
-            print(f"  {ch.index}: {ch.settings.name or f'Channel {ch.index}'}")
+            print("Not connected to any device")
+            return
+        
         print("Available channels:")
-        for i, ch in enumerate(self.interface.localNode.channels):
-            print(f"  {i}: {ch.settings.name}")
+        if not self.interface.localNode.channels:
+            print("  No channels found.")
+            return
+            
+        for ch in self.interface.localNode.channels:
+            channel_name = ch.settings.name or f"Unnamed channel {ch.index}"
+            print(f"  Index {ch.index}: {channel_name}")
 
 def main():
     parser = argparse.ArgumentParser(description='Meshtastic Serial Client')
