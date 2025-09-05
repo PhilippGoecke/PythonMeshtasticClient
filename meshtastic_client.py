@@ -61,7 +61,7 @@ class MeshtasticClient:
         except Exception as e:
             print(f"Error processing message: {e}")
 
-    def send_message(self, message, channel_name="LongFast"):
+    def send_message(self, message, channel_name="Unnamed channel 0"):
         """Send a message to a specific channel."""
         if not self.connected:
             print("Not connected to any device")
@@ -70,9 +70,10 @@ class MeshtasticClient:
         try:
             # Find the channel index by name
             channel_index = None
-            for idx, channel in enumerate(self.interface.localNode.channels):
-                if channel.settings.name == channel_name:
-                    channel_index = idx
+            for ch in self.interface.localNode.channels:
+                ch_name = ch.settings.name or f"Unnamed channel {ch.index}"
+                if ch_name == channel_name:
+                    channel_index = ch.index
                     break
             
             if channel_index is None:
@@ -116,10 +117,15 @@ def main():
     try:
         client.list_channels()
         
+        # Set a default channel to send messages to
+        current_channel = "Primary" # A common default channel name
+        
         print("\nMeshtastic Client Commands:")
-        print("  send <message> - Send a message to LongFast channel")
+        print("  send <message> - Send a message to the current channel")
+        print("  set_channel <channel_name> - Set the default channel for sending messages")
         print("  list - List available channels")
         print("  exit - Exit the client")
+        print(f"\nDefault channel is currently '{current_channel}'")
         
         while True:
             command = input("> ").strip()
@@ -128,9 +134,12 @@ def main():
                 break
             elif command == "list":
                 client.list_channels()
+            elif command.startswith("set_channel "):
+                current_channel = command[12:]
+                print(f"Default channel set to '{current_channel}'")
             elif command.startswith("send "):
                 message = command[5:]
-                client.send_message(message, "LongFast")
+                client.send_message(message, current_channel)
             else:
                 print("Unknown command. Available commands: send, list, exit")
                 
