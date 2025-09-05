@@ -13,6 +13,7 @@ class MeshtasticClient:
         self.interface = None
         self.port = port
         self.host = host
+        self.current_channel = "Unnamed channel 0"
         self.connected = False
 
     def connect(self):
@@ -116,17 +117,13 @@ def main():
     
     try:
         client.list_channels()
-        
-        # Set a default channel to send messages to
-        # The default channel is now a setting in the MeshtasticClient
-        # It is initialized in the constructor.
-        
+
         print("\nMeshtastic Client Commands:")
         print("  send <message> - Send a message to the current channel")
         print("  set_channel <channel_name> - Set the default channel for sending messages")
         print("  list - List available channels")
         print("  exit - Exit the client")
-        print(f"\nDefault channel is currently '{current_channel}'")
+        print(f"\nDefault channel is currently '{client.current_channel}'")
         
         while True:
             command = input("> ").strip()
@@ -136,11 +133,11 @@ def main():
             elif command == "list":
                 client.list_channels()
             elif command.startswith("set_channel "):
-                current_channel = command[12:]
-                print(f"Default channel set to '{current_channel}'")
+                client.current_channel = command[12:]
+                print(f"Default channel set to '{client.current_channel}'")
             elif command.startswith("send "):
                 message = command[5:]
-                client.send_message(message, current_channel)
+                client.send_message(message, client.current_channel)
             else:
                 print("Unknown command. Available commands: send, list, exit")
                 
