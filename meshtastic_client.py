@@ -67,8 +67,8 @@ class MeshtasticClient:
         try:
             # Find the channel index by name
             channel_index = None
-            for idx, channel in self.interface.localNode.channels.items():
-                if channel.get('settings', {}).get('name') == channel_name:
+            for idx, channel in enumerate(self.interface.localNode.channels):
+                if channel.settings.name == channel_name:
                     channel_index = idx
                     break
             
@@ -90,9 +90,8 @@ class MeshtasticClient:
             return
         
         print("Available channels:")
-        for idx, channel in self.interface.localNode.channels.items():
-            name = channel.get('settings', {}).get('name', 'Unnamed')
-            print(f"  {idx}: {name}")
+        for i, ch in enumerate(self.interface.localNode.channels):
+            print(f"  {i}: {ch.settings.name}")
 
 def main():
     parser = argparse.ArgumentParser(description='Meshtastic Serial Client')
