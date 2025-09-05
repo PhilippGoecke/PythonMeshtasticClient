@@ -169,10 +169,34 @@ def set_position_broadcast(node, enabled: bool):
         logging.exception(f"Error setting position.position_broadcast_smart_enabled: {e}")
 
 def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
-        if not ssid:
-                return
-        logging.info("Configuring Wi-Fi credentials")
-        node.writeConfig(wifi={"ssid": ssid, "psk": psk or ""})
+    if not ssid:
+        logging.info("No Wi-Fi SSID provided; disabling Wi-Fi configuration")
+        try:
+            cmd = [
+                "meshtastic", "--set", "network.wifi_enabled", "false",
+            ]
+
+            return subprocess.run(cmd, capture_output=True, text=True)
+
+    logging.info(f"Configuring Wi-Fi SSID={ssid} psk={'(provided)' if psk else '(none)'}")
+    try:
+        cmd = [
+            "meshtastic",
+            "--set", "network.wifi_enabled", "true",
+            "--set", "network.wifi_ssid", ssid,
+        ]
+        if psk:
+            cmd += ["--set", "network.wifi_psk", psk]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logging.error(f"Failed to configure Wi-Fi (exit {result.returncode}): {result.stderr.strip()}")
+        else:
+            logging.info(f"Wi-Fi configured: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found; cannot configure Wi-Fi")
+    except Exception as e:
+        logging.exception(f"Error configuring Wi-Fi: {e}")
 
 def set_channel(node, index: int, name: Optional[str], psk: Optional[str]):
         if name or psk:
