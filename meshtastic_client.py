@@ -51,9 +51,12 @@ class MeshtasticClient:
             if packet.get('decoded', {}).get('portnum') == 'TEXT_MESSAGE_APP':
                 sender = packet.get('fromId', 'Unknown')
                 message = packet.get('decoded', {}).get('text', '')
-                channel = packet.get('channel', 0)
-                channel_name = interface.getChannelByChannelIndex(channel).get('settings', {}).get('name', 'Unknown')
+                channel_index = packet.get('channel', 0)
                 
+                channel_name = "Unknown"
+                if self.interface.localNode.channels and channel_index < len(self.interface.localNode.channels):
+                    channel_name = self.interface.localNode.channels[channel_index].settings.name or f"Channel {channel_index}"
+
                 print(f"Message from {sender} on channel {channel_name}: {message}")
         except Exception as e:
             print(f"Error processing message: {e}")
@@ -86,9 +89,9 @@ class MeshtasticClient:
     def list_channels(self):
         """List available channels on the device."""
         if not self.connected:
-            print("Not connected to any device")
-            return
-        
+        print("Available channels:")
+        for ch in self.interface.localNode.channels:
+            print(f"  {ch.index}: {ch.settings.name or f'Channel {ch.index}'}")
         print("Available channels:")
         for i, ch in enumerate(self.interface.localNode.channels):
             print(f"  {i}: {ch.settings.name}")
