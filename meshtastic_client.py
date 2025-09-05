@@ -1,5 +1,50 @@
 #!/usr/bin/env python3
 
+"""
+Q: what is required to initialize a meshtastic device?
+
+Meshtastic device initialization prerequisites (informational):
+
+1. Hardware:
+    - Meshtastic-compatible LoRa device (e.g. T-Beam, T-Echo, T-Lora, etc.)
+    - Flashed with current Meshtastic firmware (via official flasher or esptool).
+    - USB cable (for serial) or device reachable over TCP (ESP32 Ethernet/WiFi).
+
+2. Host setup:
+    - Python 3.9+ recommended.
+    - pip install meshtastic protobuf pubsub readline (readline is stdlib on *nix).
+    - On Linux: add user to dialout/tty/serial group or run with sudo.
+    - Identify serial port (e.g. /dev/ttyUSB0, /dev/ttyACM0, COM5 on Windows).
+
+3. Environment / config (optional):
+    - Create a .env file with MESHTASTIC_REGION=US (or EU_868, AU_915, etc.).
+    - Optionally predefine secure channel parameters (PSKs) you want to add.
+
+4. Region compliance:
+    - Must set correct RegionCode for legal frequencies before real use.
+    - This script auto-applies MESHTASTIC_REGION if provided.
+
+5. Runtime inputs:
+    - Choose exactly one: serial port OR TCP host/IP.
+    - Example invocation patterns you might add later:
+         python script.py --port /dev/ttyUSB0
+         python script.py --host 192.168.1.50
+
+6. Minimal logical init sequence performed later in code:
+    - Load .env (if present).
+    - Instantiate MeshtasticClient(port=..., host=...).
+    - client.connect()
+    - (Auto) client.bootstrap_region_from_env()
+    - Interact: list channels, add channel, send messages.
+
+7. Channel security (optional but recommended):
+    - Provide a strong PSK (passphrase) when creating new channels.
+    - Uplink/downlink flags control mesh propagation behavior.
+
+Nothing executable is placed here intentionally; this block documents what is required
+before the rest of the script runs.
+"""
+
 import os
 import meshtastic
 import meshtastic.serial_interface
