@@ -99,6 +99,14 @@ REGION_ALIASES = {
         "UA": "UA",
         "LORA_24": "LORA_24",
 }
+
+def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
+        if long_name is None and short_name is None:
+                logging.info("No owner specified, skipping owner configuration")
+                return
+        logging.info(f"Setting owner to {long_name} ({short_name})")
+        write_config(node, owner={"long_name": long_name, "short_name": short_name})
+
 def set_region(node, desired_region: str):
         if not desired_region:
                 logging.info("No region specified, skipping region configuration")
@@ -122,9 +130,6 @@ def set_region(node, desired_region: str):
                 return raw  # treat as plain text passphrase
         # Meshtastic Python API expects setChannel(psk=string)
 
-def set_region(node, desired_region: str):
-        if not desired_region:
-                logging.info("No region specified, skipping region configuration")
 def set_role(node, role: Optional[str]):
         if not role:
                 return
@@ -140,6 +145,7 @@ def set_role(node, role: Optional[str]):
         logging.info(f"Setting device role to {role}")
         write_config(node, device={"role": role})
         node.writeConfig(lora={"region": desired_region})
+
 def set_position_broadcast(node, enabled: bool):
         cfg = get_config(node)
         cur = cfg.position.position_broadcast_secs
