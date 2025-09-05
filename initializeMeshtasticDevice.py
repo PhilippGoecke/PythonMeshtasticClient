@@ -126,20 +126,29 @@ def set_region(node, desired_region: str):
         logging.exception(f"Unexpected error setting region: {e}")
 
 def set_role(node, role: Optional[str]):
-        if not role:
-            return
-        role_enum = getattr(config_pb2.Config.DeviceConfig.Role, role.upper(), None)
-        if role_enum is None:
-            logging.warning(f"Role '{role}' not valid, skipping")
-            return
-        cfg = get_config(node)
-        if cfg.device.role == role_enum:
-            logging.info(f"Device role already {role}")
-            return
-        cfg.device.role = role_enum
-        logging.info(f"Setting device role to {role}")
-        write_config(node, device={"role": role})
-        node.writeConfig(lora={"region": desired_region})
+    if not role:
+        return
+
+    valid_roles = {"CLIENT", "CLIENT_MUTE", "ROUTER", "REPEATER", "TRACKER", "SENSOR"}
+    if desired_role not in valid_roles:
+        logging.error(f"Invalid role '{role}'. Valid roles: {', '.join(sorted(valid_roles))}")
+        return
+
+    logging.info(f"Setting role via CLI to {desired_role}")
+    try:
+        result = subprocess.run(
+        ["meshtastic", "--set", "device.role", desired_role],
+        capture_output=True,
+        text=True
+        )
+        if result.returncode != 0:
+            logging.error(f"Failed to set role (exit {result.returncode}): {result.stderr.strip()}")
+        else:
+            logging.info(f"Role set output: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found in PATH; cannot set role")
+    except Exception as e:
+        logging.exception(f"Unexpected error setting role: {e}")
 
 def set_position_broadcast(node, enabled: bool):
         cfg = get_config(node)
