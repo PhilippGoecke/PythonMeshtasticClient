@@ -27,6 +27,7 @@ import secrets
 import logging
 from typing import Optional
 from dotenv import load_dotenv
+import subprocess
 
 # Load environment variables
 load_dotenv()
@@ -104,31 +105,25 @@ def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
             return iface.localNode.setOwner(long_name, short_name)
 
 def set_region(node, desired_region: str):
-        if not desired_region:
-            logging.info("No region specified; skipping region configuration")
-            return
+    if not desired_region:
+        logging.info("No region specified; skipping region configuration")
+        return
 
-        # Try to get enum container (handle older/newer layouts)
-        RegionEnumContainer = getattr(config_pb2.Config.LoRaConfig, "Region", None) or getattr(config_pb2, "Region", None)
-        if RegionEnumContainer is None:
-            logging.warning("Region enum not found in protobuf definitions; skipping")
-            return
-
-        region_enum = getattr(RegionEnumContainer, desired_region, None)
-        if region_enum is None:
-            logging.warning(f"Region '{desired_region}' is not valid; skipping")
-            return
-
-        # Check current region
-        try:
-            cfg = get_config(node)
-            current_val = cfg.lora.region
-            try:
-                current_name = RegionEnumContainer.Name(current_val)
-            except Exception:
-                current_name = str(current_val)
-            if current_name == desired_region:
-                logging.info(f"LoRa region already set to {desired_region}")
+    logging.info(f"Setting region via CLI to {desired_region}")
+    try:
+        result = subprocess.run(
+        ["meshtastic", "--set", "lora.region", desired_region],
+        capture_output=True,
+        text=True
+        )
+        if result.returncode != 0:
+            logging.error(f"Failed to set region (exit {result.returncode}): {result.stderr.strip()}")
+        else:
+            logging.info(f"Region set output: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found in PATH; cannot set region")
+    except Exception as e:
+        logging.exception(f"Unexpected error setting region: {e}")
 
 def set_role(node, role: Optional[str]):
         if not role:
