@@ -261,9 +261,7 @@ def main():
                 set_position_broadcast(node, bool_env("MESHTASTIC_POSITION_BROADCAST", False))
                 set_wifi(node, env("MESHTASTIC_WIFI_SSID"), env("MESHTASTIC_WIFI_PSK"))
 
-                channel_index = int(env("MESHTASTIC_CHANNEL_INDEX", "0"))
-                psk = resolve_psk(env("MESHTASTIC_CHANNEL_PSK"))
-                set_channel(node, channel_index, env("MESHTASTIC_CHANNEL_NAME"), psk)
+                set_channel(node, int(env("MESHTASTIC_CHANNEL_INDEX", "0")), env("MESHTASTIC_CHANNEL_NAME"), env("MESHTASTIC_CHANNEL_PSK"))
 
                 logging.info("Waiting for config to flush to device...")
                 iface.waitForConfig()
