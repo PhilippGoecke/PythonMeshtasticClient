@@ -125,13 +125,13 @@ def set_region(node, desired_region: str):
     except Exception as e:
         logging.exception(f"Unexpected error setting region: {e}")
 
-def set_role(node, role: Optional[str]):
-    if not role:
+def set_role(node, desired_role: Optional[str]):
+    if not desired_role:
         return
 
     valid_roles = {"CLIENT", "CLIENT_MUTE", "ROUTER", "REPEATER", "TRACKER", "SENSOR"}
     if desired_role not in valid_roles:
-        logging.error(f"Invalid role '{role}'. Valid roles: {', '.join(sorted(valid_roles))}")
+        logging.error(f"Invalid role '{desired_role}'. Valid roles: {', '.join(sorted(valid_roles))}")
         return
 
     logging.info(f"Setting role via CLI to {desired_role}")
