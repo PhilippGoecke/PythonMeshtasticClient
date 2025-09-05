@@ -1,4 +1,4 @@
-# 🐍 Python Meshtastic Client
+# 🐍 Python Meshtastic Client (WIP!)
 
 [![Python Version](https://img.shields.io/badge/python-3.x-blue.svg)](https://www.python.org/)
 [![PyPI version](https://badge.fury.io/py/meshtastic.svg)](https://badge.fury.io/py/meshtastic)
