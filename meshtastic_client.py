@@ -30,6 +30,7 @@ class MeshtasticClient:
         self.interface = None
         self.port = port
         self.host = host
+        self.current_channel = None
         self.connected = False
 
     def connect(self):
@@ -60,7 +61,10 @@ class MeshtasticClient:
             print(f"  Index {ch.index}: {channel_name}")
 
     def current_channel(self):
-        return os.getenv("CURRENT_CHANNEL", "Unnamed channel 0")
+        if self.current_channel:
+            return self.current_channel
+        else:
+            return os.getenv("CURRENT_CHANNEL_NAME", "Unnamed channel 0")
 
     def disconnect(self):
         if self.interface:
