@@ -115,8 +115,9 @@ def set_region(node, desired_region: str):
                 logging.info(f"Region already set to {desired_region}")
                 return
         logging.info(f"Setting region to {desired_region}")
-        # Shorthand dict form supported by library
-        write_config(node, lora={"region": desired_region})
+        try:
+            # Shorthand dict form supported by library
+            write_config(node, lora={"region": desired_region})
         except Exception:
                 return raw  # treat as plain text passphrase
         # Meshtastic Python API expects setChannel(psk=string)
