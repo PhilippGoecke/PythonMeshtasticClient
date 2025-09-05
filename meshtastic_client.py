@@ -7,7 +7,7 @@ import time
 import argparse
 from pubsub import pub
 import readline
-from meshtastic.radioconfig_pb2 import RegionCode
+from meshtastic.config_pb2 import RegionCode
 
 class MeshtasticClient:
     def __init__(self, port=None, host=None):
