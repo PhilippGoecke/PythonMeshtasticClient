@@ -202,6 +202,12 @@ def main():
                 logging.error(f"Failed to connect to device: {e}")
                 sys.exit(2)
 
+        # iface = meshtastic.serial_interface.SerialInterface()
+        if iface.nodes:
+            for n in iface.nodes.values():
+                 if n["num"] == iface.myInfo.my_node_num:
+                      print(f"hwModel: {n['user']['hwModel']}")
+
         node = iface.localNode
 
         try:
