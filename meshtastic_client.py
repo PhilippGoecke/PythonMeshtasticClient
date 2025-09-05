@@ -122,26 +122,27 @@ def main():
         print("  list - List available channels")
         print("  exit - Exit the client")
         print(f"\nDefault channel is currently '{client.current_channel}'")
+
         # Keep a local log of received text messages
         received_messages = []
 
         # Subscribe to capture messages for history (printing already handled in client.on_message_received)
         def _log_message(packet, interface):
             try:
-            if packet.get('decoded', {}).get('portnum') == 'TEXT_MESSAGE_APP':
-                sender = packet.get('fromId', 'Unknown')
-                message = packet.get('decoded', {}).get('text', '')
-                channel_index = packet.get('channel', 0)
-                channel_name = "Unknown"
-                if client.interface.localNode.channels and channel_index < len(client.interface.localNode.channels):
-                channel_name = client.interface.localNode.channels[channel_index].settings.name or f"Channel {channel_index}"
-                ts = time.strftime("%H:%M:%S")
-                received_messages.append(f"[{ts}] {channel_name} {sender}: {message}")
-                # Optional: limit history size
-                if len(received_messages) > 200:
-                received_messages.pop(0)
+                if packet.get('decoded', {}).get('portnum') == 'TEXT_MESSAGE_APP':
+                    sender = packet.get('fromId', 'Unknown')
+                    message = packet.get('decoded', {}).get('text', '')
+                    channel_index = packet.get('channel', 0)
+                    channel_name = "Unknown"
+                    if client.interface.localNode.channels and channel_index < len(client.interface.localNode.channels):
+                        channel_name = client.interface.localNode.channels[channel_index].settings.name or f"Channel {channel_index}"
+                        ts = time.strftime("%H:%M:%S")
+                        received_messages.append(f"[{ts}] {channel_name} {sender}: {message}")
+                        # Optional: limit history size
+                        if len(received_messages) > 200:
+                            received_messages.pop(0)
             except Exception:
-            pass
+                pass
 
         pub.subscribe(_log_message, "meshtastic.receive.data")
 
@@ -151,23 +152,21 @@ def main():
         while True:
             command = input("> ").strip()
             if command == "exit":
-            break
+                break
             elif command == "list":
-            client.list_channels()
+                client.list_channels()
             elif command.startswith("send "):
-            message = command[5:]
-            client.send_message(message)
+                message = command[5:]
+                client.send_message(message)
             elif command == "history":
-            if not received_messages:
-                print("No messages received yet.")
+                if not received_messages:
+                    print("No messages received yet.")
+                else:
+                    print("Received messages:")
+                    for line in received_messages[-50:]:
+                    print("  " + line)
             else:
-                print("Received messages:")
-                for line in received_messages[-50:]:
-                print("  " + line)
-            elif command == "help":
-            print("Commands: send <msg>, list, history, exit")
-            else:
-            print("Unknown command. Type 'help' for commands.")
+                print("Commands: send <msg>, list, history, exit")
     except KeyboardInterrupt:
         print("\nExiting...")
     finally:
