@@ -28,6 +28,7 @@ import logging
 from typing import Optional
 from dotenv import load_dotenv
 import subprocess
+import time
 
 # Load environment variables
 load_dotenv()
@@ -36,7 +37,6 @@ load_dotenv()
 try:
         import meshtastic
         from meshtastic import serial_interface, tcp_interface
-import time
         try:
                 from meshtastic.protobufs import config_pb2  # newer package layout
         except ImportError:
@@ -145,6 +145,25 @@ def set_region(node, desired_region: str):
         logging.error("meshtastic CLI not found in PATH; cannot set region")
     except Exception as e:
         logging.exception(f"Unexpected error setting region: {e}")
+    finally:
+        logging.info("Finished setting region")
+    # Region changes typically trigger a device reboot; wait for it to come back
+    iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+    if iface:
+        logging.info("Waiting for device reboot after region change (up to 60s)...")
+        for _ in range(60):
+            try:
+                info = getattr(iface, "myInfo", None)
+                if info and getattr(info, "my_node_num", None):
+                    logging.info("Device reconnected after region change")
+                    break
+            except Exception:
+                pass
+            time.sleep(1)
+        else:
+            logging.warning("Timed out waiting for device reboot after region change")
+    else:
+        logging.debug("No interface reference available to wait for reboot")
 
 def set_role(node, desired_role: Optional[str]):
     if not desired_role:
@@ -170,6 +189,23 @@ def set_role(node, desired_role: Optional[str]):
         logging.error("meshtastic CLI not found in PATH; cannot set role")
     except Exception as e:
         logging.exception(f"Unexpected error setting role: {e}")
+    # Wait for possible reboot after role change
+    iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+    if iface:
+        logging.info("Waiting for device to come back after role change (up to 45s)...")
+        for _ in range(45):
+            try:
+                info = getattr(iface, "myInfo", None)
+                if info and getattr(info, "my_node_num", None):
+                    logging.info("Device responsive after role change")
+                    break
+            except Exception:
+                pass
+            time.sleep(1)
+        else:
+            logging.warning("Timed out waiting for device after role change")
+    else:
+        logging.debug("No interface reference to wait for after role change")
 
 def set_position_broadcast(node, enabled: bool):
     # Configure smart position broadcast flag via CLI
@@ -188,6 +224,22 @@ def set_position_broadcast(node, enabled: bool):
         logging.error("meshtastic CLI not found; cannot set position.position_broadcast_smart_enabled")
     except Exception as e:
         logging.exception(f"Error setting position.position_broadcast_smart_enabled: {e}")
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface:
+            logging.info("Waiting for device reboot (up to 45s)...")
+            for _ in range(45):
+                try:
+                    info = getattr(iface, "myInfo", None)
+                    if info and getattr(info, "my_node_num", None):
+                        logging.info("Device responsive after position broadcast change")
+                        break
+                except Exception:
+                    pass
+                time.sleep(1)
+            else:
+                logging.warning("Timed out waiting for device reboot after position broadcast change")
+        else:
+            logging.debug("No interface reference available to wait for reboot")
 
 def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
     if not ssid:
@@ -220,6 +272,22 @@ def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
         logging.error("meshtastic CLI not found; cannot configure Wi-Fi")
     except Exception as e:
         logging.exception(f"Error configuring Wi-Fi: {e}")
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface:
+            logging.info("Waiting for device to reboot after Wi-Fi change (up to 60s)...")
+            for _ in range(60):
+            try:
+                info = getattr(iface, "myInfo", None)
+                if info and getattr(info, "my_node_num", None):
+                logging.info("Device responsive after Wi-Fi change")
+                break
+            except Exception:
+                pass
+            time.sleep(1)
+            else:
+            logging.warning("Timed out waiting for device after Wi-Fi change")
+        else:
+            logging.debug("No interface reference available to wait for reboot")
 
 def set_channel(node, index: int, name: Optional[str], psk: Optional[str]):
     # meshtastic --ch-set name "My Channel" --ch-set psk random --ch-set uplink_enabled true --ch-index 4
@@ -254,6 +322,25 @@ def set_channel(node, index: int, name: Optional[str], psk: Optional[str]):
         logging.error("meshtastic CLI not found; cannot configure channel")
     except Exception as e:
         logging.exception(f"Unexpected error configuring channel {index}: {e}")
+    # Wait for possible device reboot after channel configuration
+    iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+    if iface:
+        logging.info("Waiting for possible reboot (up to 60s) after channel change...")
+        lost = False
+        for _ in range(60):
+            try:
+                info = getattr(iface, "myInfo", None)
+                if info and getattr(info, "my_node_num", None):
+                    if lost:
+                        logging.info("Device responsive again after channel change")
+                        break
+                else:
+                    lost = True
+            except Exception:
+                lost = True
+            time.sleep(1)
+        else:
+            logging.warning("Timed out waiting for device after channel change")
 
 def main():
         if bool_env("MESHTASTIC_VERBOSE"):
