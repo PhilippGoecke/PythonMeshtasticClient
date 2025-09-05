@@ -116,6 +116,11 @@ def main():
         return
 
     try:
+        if client.interface.nodes:
+            for n in client.interface.nodes.values():
+                 if n["num"] == client.interface.myInfo.my_node_num:
+                      print(f"hwModel: {n['user']['hwModel']}")
+
         client.list_channels()
         print("\nMeshtastic Client Commands:")
         print("  send <message> - Send a message to the current channel")
