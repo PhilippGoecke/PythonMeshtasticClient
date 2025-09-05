@@ -1,143 +1,389 @@
 #!/usr/bin/env python3
+"""
+Initialize a Meshtastic device from environment variables.
+
+Environment variables (all optional unless noted):
+    MESHTASTIC_SERIAL             Serial port (e.g. /dev/ttyUSB0)
+    MESHTASTIC_HOST               Host:port for TCP (if using Meshtastic TCP service)
+    MESHTASTIC_REGION             Region code (e.g. US, EU433, EU868, CN, JP, ANZ, KR, TW, RU, IN, NZ865, TH, LORA_24, UA)
+    MESHTASTIC_OWNER_LONG         Owner long name
+    MESHTASTIC_OWNER_SHORT        Owner short name (max 4 chars recommended)
+    MESHTASTIC_CHANNEL_NAME       Primary channel name
+    MESHTASTIC_CHANNEL_PSK        Base64 or cleartext PSK (16 chars -> will be hashed). If literally "random" a random key is generated.
+    MESHTASTIC_CHANNEL_INDEX      Channel index (default 0)
+    MESHTASTIC_DEVICE_ROLE        Client, Router, Repeater, Tracker, Sensor, TA (if supported)
+    MESHTASTIC_POSITION_BROADCAST true/false to enable position broadcast (if supported)
+    MESHTASTIC_WIFI_SSID          (optional, ESP32 class devices)
+    MESHTASTIC_WIFI_PSK           (optional)
+    MESHTASTIC_VERBOSE            1 for debug logs
+
+Requires: pip install meshtastic
+"""
 
 import os
-import meshtastic
-import meshtastic.serial_interface
-import meshtastic.tcp_interface
+import sys
+import base64
+import secrets
+import logging
+from typing import Optional
+from dotenv import load_dotenv
+import subprocess
 import time
-import argparse
-from pubsub import pub
-import readline
 
-# --- NEW: simple .env loader (no external dependency) ---
-def load_env(path=".env"):
-    if not os.path.exists(path):
+# Load environment variables
+load_dotenv()
+
+# Lazy import meshtastic to allow graceful error if not installed
+try:
+        import meshtastic
+        from meshtastic import serial_interface, tcp_interface
+        try:
+                from meshtastic.protobufs import config_pb2  # newer package layout
+        except ImportError:
+                from meshtastic import config_pb2  # older package layout
+except ImportError as e:
+        print(f"meshtastic library not installed. Run: pip install meshtastic (ImportError: {e})", file=sys.stderr)
+
+        sys.exit(1)
+
+def env(name: str, default: Optional[str] = None) -> Optional[str]:
+        """Get environment variable or default if unset or empty"""
+        value = os.getenv(name, default)
+        print(f"loading env(name: {name}, default: {default}) -> '{value}'")
+        return value if value not in ("", None) else default
+
+def bool_env(name: str, default: bool = False) -> bool:
+        value = env(name)
+        if value is None:
+                return default
+        return value.lower() in ("1", "true", "yes", "on")
+
+def get_interface():
+        host = env("MESHTASTIC_HOST")
+
+        if host:
+                logging.info(f"Connecting via TCP to {host}")
+                return tcp_interface.TCPInterface(hostname=host)
+
+        port = env("MESHTASTIC_SERIAL")
+
+        logging.info(f"Connecting via Serial ({port or 'auto-discover'})")
+
+        return serial_interface.SerialInterface(devPath=port)
+
+def get_config(node):
+        """
+        Compatibility helper: some versions expose getConfig on the node, others only on the interface.
+        """
+        if hasattr(node, "getConfig"):
+            return node.getConfig()
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface and hasattr(iface, "getConfig"):
+            return iface.getConfig()
+        raise AttributeError("Neither node nor its interface provides getConfig()")
+
+def write_config(node, **sections):
+        """
+        Compatibility helper mirroring writeConfig similarly.
+        """
+        print(f"write_config(node: {node}, sections: {list(sections.keys())}")
+
+        if hasattr(node, "writeConfig"):
+            return node.writeConfig(**sections)
+
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if hasattr(iface, "localNode"):
+            return iface.localNode.setOwner(long_name, short_name)
+
+def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
+        if long_name is None and short_name is None:
+            logging.info("No owner specified, skipping owner configuration")
+            return
+
+        logging.info(f"Setting owner to {long_name} ({short_name})")
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface and hasattr(iface, "localNode"):
+            try:
+                iface.localNode.setOwner(long_name, short_name)
+            except Exception as e:
+                logging.error(f"Failed to send owner set request: {e}")
+                return
+
+            for _ in range(30):  # ~15s max (30 * 0.5)
+                try:
+                    my_id = iface.myInfo.my_node_num
+                    for n in iface.nodes.values():
+                        if n.get("num") == my_id:
+                            user = n.get("user", {})
+                            ln = user.get("longName")
+                            sn = user.get("shortName")
+                            if (long_name is None or ln == long_name) and (short_name is None or sn == short_name):
+                                logging.info("Owner set confirmed")
+                                return
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            logging.warning("Timed out waiting for owner confirmation")
+
+def set_region(node, desired_region: str):
+    if not desired_region:
+        logging.info("No region specified; skipping region configuration")
         return
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
-                print(f"Loading {key} from {path}: {value}")
-                os.environ[key] = value
 
-class MeshtasticClient:
-    def __init__(self, port=None, host=None):
-        self.interface = None
-        self.port = port
-        self.host = host
-        self.current_channel = None
-        self.connected = False
-
-    def connect(self):
-        try:
-            if self.host:
-                self.interface = meshtastic.tcp_interface.TCPInterface(hostname=self.host)
-            else:
-                self.interface = meshtastic.serial_interface.SerialInterface(devPath=self.port)
-            pub.subscribe(self.on_message_received, "meshtastic.receive.data")
-            pub.subscribe(self.on_connection_established, "meshtastic.connection.established")
-            self.connected = True
-            print("Connected to Meshtastic device")
-            return True
-        except Exception as e:
-            print(f"Failed to connect: {e}")
-            return False
-
-    def list_channels(self):
-        if not self.connected:
-            print("Not connected to any device")
-            return
-        print("Available channels:")
-        if not self.interface.localNode.channels:
-            print("  No channels found.")
-            return
-        for ch in self.interface.localNode.channels:
-            channel_name = ch.settings.name or f"Unnamed channel {ch.index}"
-            print(f"  Index {ch.index}: {channel_name}")
-
-    def current_channel(self):
-        if self.current_channel is not None:
-            return self.current_channel
+    logging.info(f"Setting region via CLI to {desired_region}")
+    try:
+        result = subprocess.run(
+        ["meshtastic", "--set", "lora.region", desired_region],
+        capture_output=True,
+        text=True
+        )
+        if result.returncode != 0:
+            logging.error(f"Failed to set region (exit {result.returncode}): {result.stderr.strip()}")
         else:
-            self.current_channel = os.getenv("CURRENT_CHANNEL_NAME", "Unnamed channel 0")
-            return self.current_channel
+            logging.info(f"Region set output: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found in PATH; cannot set region")
+    except Exception as e:
+        logging.exception(f"Unexpected error setting region: {e}")
+    finally:
+        logging.info("Finished setting region")
+    # Region changes typically trigger a device reboot; wait for it to come back
+    iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+    if iface:
+        logging.info("Waiting for device reboot after region change (up to 60s)...")
+        for _ in range(60):
+            try:
+                info = getattr(iface, "myInfo", None)
+                if info and getattr(info, "my_node_num", None):
+                    logging.info("Device reconnected after region change")
+                    break
+            except Exception:
+                pass
+            time.sleep(1)
+        else:
+            logging.warning("Timed out waiting for device reboot after region change")
+    else:
+        logging.debug("No interface reference available to wait for reboot")
 
-    def disconnect(self):
-        if self.interface:
-            self.interface.close()
-            self.connected = False
-            print("Disconnected from Meshtastic device")
+def set_role(node, desired_role: Optional[str]):
+    if not desired_role:
+        return
 
-    def on_connection_established(self, interface, topic=pub.AUTO_TOPIC):
-        print(f"Connection established: {interface}")
+    valid_roles = {"CLIENT", "CLIENT_MUTE", "ROUTER", "REPEATER", "TRACKER", "SENSOR"}
+    if desired_role not in valid_roles:
+        logging.error(f"Invalid role '{desired_role}'. Valid roles: {', '.join(sorted(valid_roles))}")
+        return
 
-    def on_message_received(self, packet, interface):
+    logging.info(f"Setting role via CLI to {desired_role}")
+    try:
+        result = subprocess.run(
+        ["meshtastic", "--set", "device.role", desired_role],
+        capture_output=True,
+        text=True
+        )
+        if result.returncode != 0:
+            logging.error(f"Failed to set role (exit {result.returncode}): {result.stderr.strip()}")
+        else:
+            logging.info(f"Role set output: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found in PATH; cannot set role")
+    except Exception as e:
+        logging.exception(f"Unexpected error setting role: {e}")
+    # Wait for possible reboot after role change
+    iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+    if iface:
+        logging.info("Waiting for device to come back after role change (up to 45s)...")
+        for _ in range(45):
+            try:
+                info = getattr(iface, "myInfo", None)
+                if info and getattr(info, "my_node_num", None):
+                    logging.info("Device responsive after role change")
+                    break
+            except Exception:
+                pass
+            time.sleep(1)
+        else:
+            logging.warning("Timed out waiting for device after role change")
+    else:
+        logging.debug("No interface reference to wait for after role change")
+
+def set_position_broadcast(node, enabled: bool):
+    # Configure smart position broadcast flag via CLI
+    logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
+    try:
+        result = subprocess.run(
+        ["meshtastic", "--set", "position.position_broadcast_smart_enabled", "true" if enabled else "false"],
+        capture_output=True,
+        text=True
+        )
+        if result.returncode != 0:
+            logging.error(f"Failed to set position.position_broadcast_smart_enabled={enabled}: {result.stderr.strip()}")
+        else:
+            logging.info(f"Set position.position_broadcast_smart_enabled={enabled}: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found; cannot set position.position_broadcast_smart_enabled")
+    except Exception as e:
+        logging.exception(f"Error setting position.position_broadcast_smart_enabled: {e}")
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface:
+            logging.info("Waiting for device reboot (up to 45s)...")
+            for _ in range(45):
+                try:
+                    info = getattr(iface, "myInfo", None)
+                    if info and getattr(info, "my_node_num", None):
+                        logging.info("Device responsive after position broadcast change")
+                        break
+                except Exception:
+                    pass
+                time.sleep(1)
+            else:
+                logging.warning("Timed out waiting for device reboot after position broadcast change")
+        else:
+            logging.debug("No interface reference available to wait for reboot")
+
+def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
+    if not ssid:
+        logging.info("No Wi-Fi SSID provided; disabling Wi-Fi configuration")
         try:
-            if packet.get('decoded', {}).get('portnum') == 'TEXT_MESSAGE_APP':
-                sender = packet.get('fromId', 'Unknown')
-                message = packet.get('decoded', {}).get('text', '')
-                channel_index = packet.get('channel', 0)
-                channel_name = "Unknown"
-                if self.interface.localNode.channels and channel_index < len(self.interface.localNode.channels):
-                    channel_name = self.interface.localNode.channels[channel_index].settings.name or f"Channel {channel_index}"
-                print(f"\r{' ' * (len(readline.get_line_buffer()) + 2)}\r", end='')
-                print(f"Message from {sender} on channel {channel_name}: {message}")
-                print(f"> {readline.get_line_buffer()}", end='', flush=True)
-        except Exception as e:
-            print(f"\rError processing message: {e}")
-            print(f"> {readline.get_line_buffer()}", end='', flush=True)
+            cmd = [
+                "meshtastic", "--set", "network.wifi_enabled", "false",
+            ]
 
-    def send_message(self, message):
-        if not self.connected:
-            print("Not connected to any device")
-            return False
-        try:
-            self.interface.sendText(message)
-            print(f"Message sent: {message}")
-            return True
+            return subprocess.run(cmd, capture_output=True, text=True)
         except Exception as e:
-            print(f"Failed to send message: {e}")
-            return False
+            logging.exception(f"Error disabling Wi-Fi: {e}")
+
+    logging.info(f"Configuring Wi-Fi SSID={ssid} psk={'(provided)' if psk else '(none)'}")
+    try:
+        cmd = [
+            "meshtastic",
+            "--set", "network.wifi_enabled", "true",
+            "--set", "network.wifi_ssid", ssid,
+        ]
+        if psk:
+            cmd += ["--set", "network.wifi_psk", psk]
+
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logging.error(f"Failed to configure Wi-Fi (exit {result.returncode}): {result.stderr.strip()}")
+        else:
+            logging.info(f"Wi-Fi configured: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found; cannot configure Wi-Fi")
+    except Exception as e:
+        logging.exception(f"Error configuring Wi-Fi: {e}")
+        iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+        if iface:
+            logging.info("Waiting for device to reboot after Wi-Fi change (up to 60s)...")
+            for _ in range(60):
+                try:
+                    info = getattr(iface, "myInfo", None)
+                    if info and getattr(info, "my_node_num", None):
+                        logging.info("Device responsive after Wi-Fi change")
+                        break
+                except Exception:
+                    pass
+                time.sleep(1)
+            else:
+                logging.warning("Timed out waiting for device after Wi-Fi change")
+        else:
+            logging.debug("No interface reference available to wait for reboot")
+
+def set_channel(node, index: int, name: Optional[str], psk: Optional[str]):
+    # meshtastic --ch-set name "My Channel" --ch-set psk random --ch-set uplink_enabled true --ch-index 4
+    logging.info(f"Configuring channel index {index}")
+    if name is None and psk is None:
+        logging.info("No channel settings provided; skipping channel configuration")
+        return
+
+    cmd = ["meshtastic", "--ch-index", str(index)]
+
+    if name:
+        cmd += ["--ch-set", "name", name]
+
+    if psk:
+        if isinstance(psk, bytes):
+            psk_value = base64.b64encode(psk).decode()
+        else:
+            psk_value = psk
+        cmd += ["--ch-set", "psk", psk_value]
+
+    # Always ensure uplink is enabled (matches requested example)
+    cmd += ["--ch-set", "uplink_enabled", "true"]
+
+    logging.debug(f"Running channel config command: {' '.join(cmd)}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            logging.error(f"Channel configuration failed (exit {result.returncode}): {result.stderr.strip()}")
+        else:
+            logging.info(f"Channel {index} configured: {result.stdout.strip() or 'success'}")
+    except FileNotFoundError:
+        logging.error("meshtastic CLI not found; cannot configure channel")
+    except Exception as e:
+        logging.exception(f"Unexpected error configuring channel {index}: {e}")
+    # Wait for possible device reboot after channel configuration
+    iface = getattr(node, "iface", None) or getattr(node, "interface", None)
+    if iface:
+        logging.info("Waiting for possible reboot (up to 60s) after channel change...")
+        lost = False
+        for _ in range(60):
+            try:
+                info = getattr(iface, "myInfo", None)
+                if info and getattr(info, "my_node_num", None):
+                    if lost:
+                        logging.info("Device responsive again after channel change")
+                        break
+                else:
+                    lost = True
+            except Exception:
+                lost = True
+            time.sleep(1)
+        else:
+            logging.warning("Timed out waiting for device after channel change")
 
 def main():
-    load_env()
-    parser = argparse.ArgumentParser(description="Meshtastic client")
-    parser.add_argument("--port", help="Serial port of Meshtastic device")
-    parser.add_argument("--host", help="TCP host/IP of Meshtastic device")
-    args = parser.parse_args()
-    client = MeshtasticClient(port=args.port, host=args.host)
-    if not client.connect():
-        print("Failed to connect to Meshtastic device")
-        return
+        if bool_env("MESHTASTIC_VERBOSE"):
+                logging.basicConfig(level=logging.DEBUG, format="%(levelname)s %(message)s")
+        else:
+                logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
-    try:
-        client.list_channels()
-        print("\nMeshtastic Client Commands:")
-        print("  send <message> - Send a message to the current channel")
-        print("  list - List available channels")
-        print("  exit - Exit the client")
-        print(f"\nDefault channel is currently '{client.current_channel}'")
+        try:
+                iface = get_interface()
+        except Exception as e:
+                logging.error(f"Failed to connect to device: {e}")
+                sys.exit(2)
 
-        while True:
-            command = input("> ").strip()
-            if command == "exit":
-                break
-            elif command == "list":
-                client.list_channels()
-            elif command.startswith("send "):
-                message = command[5:]
-                client.send_message(message)
-            else:
-                print("Unknown command. Type 'list' for commands.")
-    except KeyboardInterrupt:
-        print("\nExiting...")
-    finally:
-        client.disconnect()
+        # iface = meshtastic.serial_interface.SerialInterface()
+        if iface.nodes:
+            for n in iface.nodes.values():
+                 if n["num"] == iface.myInfo.my_node_num:
+                      print(f"hwModel: {n['user']['hwModel']}")
+
+        node = iface.localNode
+
+        try:
+                set_owner(node, env("MESHTASTIC_OWNER_LONG"), env("MESHTASTIC_OWNER_SHORT"))
+                set_region(node, env("MESHTASTIC_REGION"))
+                set_role(node, env("MESHTASTIC_DEVICE_ROLE"))
+                set_position_broadcast(node, bool_env("MESHTASTIC_POSITION_BROADCAST", False))
+                set_wifi(node, env("MESHTASTIC_WIFI_SSID"), env("MESHTASTIC_WIFI_PSK"))
+
+                set_channel(node, int(env("MESHTASTIC_CHANNEL_INDEX", "0")), env("MESHTASTIC_CHANNEL_NAME"), env("MESHTASTIC_CHANNEL_PSK"))
+
+                logging.info("Waiting for config to flush to device...")
+                iface.waitForConfig()
+                logging.info("Initialization complete.")
+        except KeyboardInterrupt:
+                logging.warning("Interrupted by user")
+        except Exception as e:
+                logging.exception(f"Initialization failed: {e}")
+                sys.exit(3)
+        finally:
+                try:
+                        iface.close()
+                except Exception:
+                        pass
 
 if __name__ == "__main__":
-    main()
+        main()
