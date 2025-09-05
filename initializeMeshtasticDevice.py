@@ -42,23 +42,27 @@ except ImportError as e:
 
 def env(name: str, default: Optional[str] = None) -> Optional[str]:
         """Get environment variable or default if unset or empty"""
-        v = os.getenv(name, default)
-        print(f"loading env(name: {name}, default: {default}) -> '{v}'")
-        return v if v not in ("", None) else default
+        value = os.getenv(name, default)
+        print(f"loading env(name: {name}, default: {default}) -> '{value}'")
+        return value if value not in ("", None) else default
 
 def bool_env(name: str, default: bool = False) -> bool:
-        v = os.getenv(name)
-        if v is None:
+        value = env(name)
+        if value is None:
                 return default
-        return v.lower() in ("1", "true", "yes", "on")
+        return value.lower() in ("1", "true", "yes", "on")
 
 def get_interface():
         host = env("MESHTASTIC_HOST")
+
         if host:
                 logging.info(f"Connecting via TCP to {host}")
                 return tcp_interface.TCPInterface(hostname=host)
+
         port = env("MESHTASTIC_SERIAL")
+
         logging.info(f"Connecting via Serial ({port or 'auto-discover'})")
+
         return serial_interface.SerialInterface(devPath=port)
 
 def get_config(node):
