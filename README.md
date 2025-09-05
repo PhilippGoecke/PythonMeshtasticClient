@@ -37,7 +37,7 @@ Follow these steps to set up your environment and install the necessary dependen
 
 2.  **Install the `meshtastic` library from PyPI:**
     ```bash
-    pip install meshtastic
+    pip install dotenv meshtastic
     ```
 
 ---
