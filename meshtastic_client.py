@@ -58,6 +58,9 @@ class MeshtasticClient:
             channel_name = ch.settings.name or f"Unnamed channel {ch.index}"
             print(f"  Index {ch.index}: {channel_name}")
 
+    def current_channel(self):
+        return os.getenv("CURRENT_CHANNEL", "Unnamed channel 0")
+
     def disconnect(self):
         if self.interface:
             self.interface.close()
