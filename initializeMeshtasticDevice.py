@@ -36,6 +36,7 @@ load_dotenv()
 try:
         import meshtastic
         from meshtastic import serial_interface, tcp_interface
+import time
         try:
                 from meshtastic.protobufs import config_pb2  # newer package layout
         except ImportError:
@@ -102,7 +103,27 @@ def set_owner(node, long_name: Optional[str], short_name: Optional[str]):
         logging.info(f"Setting owner to {long_name} ({short_name})")
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
         if iface and hasattr(iface, "localNode"):
-            return iface.localNode.setOwner(long_name, short_name)
+            try:
+                iface.localNode.setOwner(long_name, short_name)
+            except Exception as e:
+                logging.error(f"Failed to send owner set request: {e}")
+                return
+
+            for _ in range(30):  # ~15s max (30 * 0.5)
+                try:
+                    my_id = iface.myInfo.my_node_num
+                    for n in iface.nodes.values():
+                        if n.get("num") == my_id:
+                            user = n.get("user", {})
+                            ln = user.get("longName")
+                            sn = user.get("shortName")
+                            if (long_name is None or ln == long_name) and (short_name is None or sn == short_name):
+                                logging.info("Owner set confirmed")
+                                return
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            logging.warning("Timed out waiting for owner confirmation")
 
 def set_region(node, desired_region: str):
     if not desired_region:
