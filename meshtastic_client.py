@@ -6,6 +6,7 @@ import meshtastic.tcp_interface
 import time
 import argparse
 from pubsub import pub
+import readline
 
 class MeshtasticClient:
     def __init__(self, port=None, host=None):
@@ -58,9 +59,13 @@ class MeshtasticClient:
                 if self.interface.localNode.channels and channel_index < len(self.interface.localNode.channels):
                     channel_name = self.interface.localNode.channels[channel_index].settings.name or f"Channel {channel_index}"
 
+                # Erase the current line, print the message, and redraw the prompt
+                print(f"\r{' ' * (len(readline.get_line_buffer()) + 2)}\r", end='')
                 print(f"Message from {sender} on channel {channel_name}: {message}")
+                print(f"> {readline.get_line_buffer()}", end='', flush=True)
         except Exception as e:
-            print(f"Error processing message: {e}")
+            print(f"\rError processing message: {e}")
+            print(f"> {readline.get_line_buffer()}", end='', flush=True)
 
     def send_message(self, message, channel_name="Unnamed channel 0"):
         """Send a message to a specific channel."""
