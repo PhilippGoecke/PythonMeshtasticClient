@@ -155,28 +155,6 @@ def set_position_broadcast(node, enabled: bool):
                 return
         # 0 disables; small positive enables
         logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
-        write_config(node, position={"position_broadcast_secs": want})
-        role_enum = getattr(config_pb2.Config.DeviceConfig.Role, role.upper(), None)
-        if role_enum is None:
-                logging.warning(f"Role '{role}' not valid, skipping")
-                return
-        cfg = node.getConfig()
-        if cfg.device.role == role_enum:
-                logging.info(f"Device role already {role}")
-                return
-        cfg.device.role = role_enum
-        logging.info(f"Setting device role to {role}")
-        node.writeConfig(device={"role": role})
-
-def set_position_broadcast(node, enabled: bool):
-        cfg = node.getConfig()
-        cur = cfg.position.position_broadcast_secs
-        want = 15 if enabled else 0
-        if (enabled and cur > 0) or (not enabled and cur == 0):
-                logging.info("Position broadcast already desired state")
-                return
-        # 0 disables; small positive enables
-        logging.info(f"Setting position broadcast {'ON' if enabled else 'OFF'}")
         node.writeConfig(position={"position_broadcast_secs": want})
 
 def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
