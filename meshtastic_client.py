@@ -118,7 +118,8 @@ def main():
         client.list_channels()
         
         # Set a default channel to send messages to
-        current_channel = "Primary" # A common default channel name
+        # The default channel is now a setting in the MeshtasticClient
+        # It is initialized in the constructor.
         
         print("\nMeshtastic Client Commands:")
         print("  send <message> - Send a message to the current channel")
