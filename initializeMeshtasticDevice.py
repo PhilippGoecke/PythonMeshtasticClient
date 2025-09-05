@@ -84,6 +84,7 @@ def write_config(node, **sections):
         """
         Compatibility helper mirroring writeConfig similarly.
         """
+        print(f"write_config(node: {node}, sections: {list(sections.keys())}")
         if hasattr(node, "writeConfig"):
             return node.writeConfig(**sections)
         iface = getattr(node, "iface", None) or getattr(node, "interface", None)
