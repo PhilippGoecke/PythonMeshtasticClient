@@ -32,8 +32,9 @@ try:
         import meshtastic
         from meshtastic import serial_interface, tcp_interface
         from meshtastic.protobufs import config_pb2
-except ImportError:
-        print("meshtastic library not installed. Run: pip install meshtastic", file=sys.stderr)
+except ImportError as e:
+        print(f"meshtastic library not installed. Run: pip install meshtastic (ImportError: {e})", file=sys.stderr)
+
         sys.exit(1)
 
 def env(name: str, default: Optional[str] = None) -> Optional[str]:
