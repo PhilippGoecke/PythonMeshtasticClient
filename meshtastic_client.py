@@ -92,22 +92,13 @@ class MeshtasticClient:
             print(f"\rError processing message: {e}")
             print(f"> {readline.get_line_buffer()}", end='', flush=True)
 
-    def send_message(self, message, channel_name="Unnamed channel 0"):
+    def send_message(self, message):
         if not self.connected:
             print("Not connected to any device")
             return False
         try:
-            channel_index = None
-            for ch in self.interface.localNode.channels:
-                ch_name = ch.settings.name or f"Unnamed channel {ch.index}"
-                if ch_name == channel_name:
-                    channel_index = ch.index
-                    break
-            if channel_index is None:
-                print(f"Channel '{channel_name}' not found")
-                return False
-            self.interface.sendText(message, channelIndex=channel_index)
-            print(f"Message sent on channel {channel_name}: {message}")
+            self.interface.sendText(message)
+            print(f"Message sent: {message}")
             return True
         except Exception as e:
             print(f"Failed to send message: {e}")
@@ -140,7 +131,7 @@ def main():
                 client.list_channels()
             elif command.startswith("send "):
                 message = command[5:]
-                client.send_message(message, client.current_channel)
+                client.send_message(message)
             else:
                 print("Unknown command. Type 'list' for commands.")
     except KeyboardInterrupt:
