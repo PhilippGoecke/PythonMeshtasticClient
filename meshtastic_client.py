@@ -1,50 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-Q: what is required to initialize a meshtastic device?
-
-Meshtastic device initialization prerequisites (informational):
-
-1. Hardware:
-    - Meshtastic-compatible LoRa device (e.g. T-Beam, T-Echo, T-Lora, etc.)
-    - Flashed with current Meshtastic firmware (via official flasher or esptool).
-    - USB cable (for serial) or device reachable over TCP (ESP32 Ethernet/WiFi).
-
-2. Host setup:
-    - Python 3.9+ recommended.
-    - pip install meshtastic protobuf pubsub readline (readline is stdlib on *nix).
-    - On Linux: add user to dialout/tty/serial group or run with sudo.
-    - Identify serial port (e.g. /dev/ttyUSB0, /dev/ttyACM0, COM5 on Windows).
-
-3. Environment / config (optional):
-    - Create a .env file with MESHTASTIC_REGION=US (or EU_868, AU_915, etc.).
-    - Optionally predefine secure channel parameters (PSKs) you want to add.
-
-4. Region compliance:
-    - Must set correct RegionCode for legal frequencies before real use.
-    - This script auto-applies MESHTASTIC_REGION if provided.
-
-5. Runtime inputs:
-    - Choose exactly one: serial port OR TCP host/IP.
-    - Example invocation patterns you might add later:
-         python script.py --port /dev/ttyUSB0
-         python script.py --host 192.168.1.50
-
-6. Minimal logical init sequence performed later in code:
-    - Load .env (if present).
-    - Instantiate MeshtasticClient(port=..., host=...).
-    - client.connect()
-    - (Auto) client.bootstrap_region_from_env()
-    - Interact: list channels, add channel, send messages.
-
-7. Channel security (optional but recommended):
-    - Provide a strong PSK (passphrase) when creating new channels.
-    - Uplink/downlink flags control mesh propagation behavior.
-
-Nothing executable is placed here intentionally; this block documents what is required
-before the rest of the script runs.
-"""
-
 import os
 import meshtastic
 import meshtastic.serial_interface
@@ -94,33 +49,8 @@ class MeshtasticClient:
             print("Connected to Meshtastic device")
             return True
         except Exception as e:
-    def bootstrap_region_from_env(self):
-        # Load desired region from environment.
-        region_code = os.getenv("MESHTASTIC_REGION")
-        if not region_code:
-            return
-        region_code = region_code.strip()
-        if RegionCode is None:
-            print("Region code in env provided but RegionCode enum unavailable; skipping.")
-            return
-        try:
-            current_region_val = self.interface.localNode.radioConfig.preferences.region
-            current_region_name = None
-            for name, enum_val in RegionCode.__members__.items():
-                if enum_val == current_region_val:
-                    current_region_name = name
-                    break
-            if current_region_name == region_code:
-                print(f"Region already set to {region_code}, skipping.")
-                return
-        except Exception:
-            pass
-        print(f"Bootstrapping region from env: {region_code}")
-        self.set_region(region_code)
-        except Exception:
-            pass
-        print(f"Bootstrapping region from env: {region_code}")
-        self.set_region(region_code)
+            print(f"Failed to connect: {e}")
+            return False
 
     def disconnect(self):
         if self.interface:
@@ -236,53 +166,23 @@ def main():
         print("Failed to connect to Meshtastic device")
         return
 
-    # NEW: bootstrap region if MESHTASTIC_REGION is set
-    client.bootstrap_region_from_env()
-
     try:
         client.list_channels()
         print("\nMeshtastic Client Commands:")
         print("  send <message> - Send a message to the current channel")
-        print("  set_channel <channel_name> - Set the default channel for sending messages")
-        print("  add_channel <name> <psk> <uplink_on|off> <downlink_on|off> - Add/configure a channel")
         print("  list - List available channels")
-        print("  set_region <region_code> - Set the device region (e.g., US, EU_868)")
-        print("  list_regions - List available region codes")
         print("  exit - Exit the client")
         print(f"\nDefault channel is currently '{client.current_channel}'")
-        env_region = os.getenv("MESHTASTIC_REGION")
-        if env_region:
-            print(f"(Region bootstrapped from env: {env_region})")
+
         while True:
             command = input("> ").strip()
             if command == "exit":
                 break
             elif command == "list":
                 client.list_channels()
-            elif command == "list_regions":
-                client.list_regions()
-            elif command.startswith("set_channel "):
-                client.current_channel = command[12:]
-                print(f"Default channel set to '{client.current_channel}'")
-            elif command.startswith("set_region "):
-                parts = command.split()
-                if len(parts) == 2:
-                    region_code = parts[1]
-                    client.set_region(region_code)
-                else:
-                    print("Usage: set_region <region_code>")
             elif command.startswith("send "):
                 message = command[5:]
                 client.send_message(message, client.current_channel)
-            elif command.startswith("add_channel "):
-                parts = command.split()
-                if len(parts) == 5:
-                    name, psk, uplink, downlink = parts[1], parts[2], parts[3], parts[4]
-                    uplink_enabled = uplink.lower() == 'on'
-                    downlink_enabled = downlink.lower() == 'on'
-                    client.add_channel(name, psk, uplink_enabled, downlink_enabled)
-                else:
-                    print("Usage: add_channel <name> <psk> <uplink_on|off> <downlink_on|off>")
             else:
                 print("Unknown command. Type 'list' for commands.")
     except KeyboardInterrupt:
