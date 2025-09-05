@@ -23,7 +23,7 @@ def on_connection(interface, topic=pub.AUTO_TOPIC):
     print("You can now send messages.")
     # Set the channel to LongFast
     print("Setting channel to LongFast...")
-    interface.localNode.set('lora.modem_preset', 'LONG_FAST')
+    interface.localNode.set_config(lora={'modem_preset': 'LONG_FAST'})
     print("Channel set to LongFast.")
 
 def main():
