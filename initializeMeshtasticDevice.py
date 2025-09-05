@@ -276,14 +276,14 @@ def set_wifi(node, ssid: Optional[str], psk: Optional[str]):
         if iface:
             logging.info("Waiting for device to reboot after Wi-Fi change (up to 60s)...")
             for _ in range(60):
-            try:
-                info = getattr(iface, "myInfo", None)
-                if info and getattr(info, "my_node_num", None):
-                logging.info("Device responsive after Wi-Fi change")
-                break
-            except Exception:
-                pass
-            time.sleep(1)
+                try:
+                    info = getattr(iface, "myInfo", None)
+                    if info and getattr(info, "my_node_num", None):
+                        logging.info("Device responsive after Wi-Fi change")
+                        break
+                except Exception:
+                    pass
+                time.sleep(1)
             else:
             logging.warning("Timed out waiting for device after Wi-Fi change")
         else:
